@@ -1,0 +1,142 @@
+{
+  "org_name": "Example Organization",
+  "workspace_name": "example-ops-live",
+  "admin_name": "Primary Operator",
+  "timezone": "America/New_York",
+  "primary_status_channel": "#operator-agent",
+  "intake_channel": "#requests",
+  "work_item_label": "work item",
+  "work_item_root": "work-items",
+  "knowledge_base_root": "knowledge-base",
+  "hub_root": "hub",
+  "connectors": {
+    "chat": "slack",
+    "email": "gmail",
+    "calendar": "google-calendar",
+    "tasks": "github"
+  },
+  "required_capabilities": [
+    "python",
+    "git"
+  ],
+  "optional_commands": [
+    "gh"
+  ],
+  "sync_skip": [
+    "local-private"
+  ],
+  "file_sources": {
+    "chat": {
+      "default_provider": "direct-url",
+      "download_root": "local-private/chat-downloads",
+      "providers": {
+        "direct-url": {
+          "type": "direct-url"
+        },
+        "slack": {
+          "type": "slack-web-api",
+          "token_env": "OPERATOR_SLACK_FILE_TOKEN"
+        },
+        "command": {
+          "type": "command",
+          "command": [
+            "python3",
+            "local-private/bin/fetch-chat-file.py"
+          ]
+        }
+      }
+    }
+  },
+  "backup": {
+    "required_paths": [
+      "AGENTS.md",
+      "hub",
+      "work-items",
+      "knowledge-base"
+    ],
+    "exclude": [
+      ".DS_Store",
+      "__pycache__/",
+      ".pytest_cache/",
+      "local-private/"
+    ],
+    "transfer": {
+      "method": "local-copy",
+      "destination": "local-private/backups/example-latest"
+    }
+  },
+  "runtime": {
+    "adapter_output": ".operator-runtime",
+    "outbox_root": "hub/MEMORY/outbox",
+    "run_root": "hub/MEMORY/automation-runs",
+    "scheduler_targets": [
+      "cron",
+      "github-actions"
+    ],
+    "publisher_targets": {
+      "status": {
+        "type": "markdown-outbox",
+        "channel": "#operator-agent",
+        "delivery": {
+          "type": "slack-webhook",
+          "url_env": "OPERATOR_STATUS_WEBHOOK_URL"
+        }
+      },
+      "tasks": {
+        "type": "task-draft",
+        "destination": "hub/MEMORY/task-drafts",
+        "delivery": {
+          "type": "github-issue",
+          "repo_env": "OPERATOR_TASK_REPO",
+          "labels": [
+            "operator-system"
+          ]
+        }
+      }
+    }
+  },
+  "automation_schedules": {
+    "morning-control-panel": {
+      "enabled": true,
+      "cron": "0 8 * * 1-5",
+      "timezone": "America/New_York"
+    },
+    "chat-intake-action-turn": {
+      "enabled": true,
+      "cron": "*/30 * * * 1-5",
+      "timezone": "America/New_York"
+    },
+    "system-review-loop": {
+      "enabled": true,
+      "cron": "0 7 * * 1",
+      "timezone": "America/New_York"
+    },
+    "workspace-backup": {
+      "enabled": false,
+      "cron": "0 2 * * 0",
+      "timezone": "America/New_York"
+    }
+  },
+  "automations": [
+    "morning-control-panel",
+    "chat-intake-action-turn",
+    "external-feed-digest",
+    "opportunity-planning-refresh",
+    "system-review-loop",
+    "operations-checklist-scan",
+    "workspace-backup",
+    "receipt-packet-assembly"
+  ],
+  "roles": [
+    {
+      "name": "primary-operator",
+      "permission": "admin",
+      "scope": "hub and all work items"
+    },
+    {
+      "name": "collaborator",
+      "permission": "member",
+      "scope": "assigned work items"
+    }
+  ]
+}

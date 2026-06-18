@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "automations": [
+    {
+      "id": "morning-control-panel",
+      "title": "Morning Control Panel",
+      "cadence": "daily, operator local morning",
+      "connectors": ["email", "chat", "calendar", "tasks"],
+      "prompt_file": "prompts/morning-control-panel.md",
+      "writes": ["hub/MEMORY/morning/YYYY-MM-DD/", "hub/MEMORY/comms.md"],
+      "closeout": "Commit tracked morning artifacts, update memory when durable state changes, and post one concise status update when configured."
+    },
+    {
+      "id": "chat-intake-action-turn",
+      "title": "Chat Intake And Action Turn",
+      "cadence": "scheduled or trigger-driven",
+      "connectors": ["chat", "tasks"],
+      "prompt_file": "prompts/chat-intake-action-turn.md",
+      "writes": ["work-items/<id>/", "hub/MEMORY/agent-action-log.md"],
+      "closeout": "Reply in the originating thread for acted-on items and end quietly when nothing actionable exists."
+    },
+    {
+      "id": "external-feed-digest",
+      "title": "External Feed Digest",
+      "cadence": "scheduled",
+      "connectors": ["web", "chat"],
+      "prompt_file": "prompts/external-feed-digest.md",
+      "writes": ["hub/MEMORY/feed-digests/", "hub/MEMORY/references.md"],
+      "closeout": "Post or save a deduped digest and update source-ID memory."
+    },
+    {
+      "id": "opportunity-planning-refresh",
+      "title": "Opportunity Planning Refresh",
+      "cadence": "monthly or deadline-driven",
+      "connectors": ["web", "chat", "tasks"],
+      "prompt_file": "prompts/opportunity-planning-refresh.md",
+      "writes": ["hub/MEMORY/opportunities.md", "hub/MEMORY/comms.md"],
+      "closeout": "Verify official dates before posting and record changed priorities."
+    },
+    {
+      "id": "system-review-loop",
+      "title": "System Review Loop",
+      "cadence": "scheduled background review",
+      "connectors": ["tasks"],
+      "prompt_file": "prompts/system-review-loop.md",
+      "writes": ["hub/MEMORY/self-optimization/", "hub/MEMORY/agent-action-log.md"],
+      "closeout": "Report what changed, what was learned, and what needs an operator decision."
+    },
+    {
+      "id": "operations-checklist-scan",
+      "title": "Operations Checklist Scan",
+      "cadence": "scheduled",
+      "connectors": ["chat", "tasks"],
+      "prompt_file": "prompts/operations-checklist-scan.md",
+      "writes": ["knowledge-base/operations/"],
+      "closeout": "Update checklist only from clear completion evidence and report ambiguities."
+    },
+    {
+      "id": "workspace-backup",
+      "title": "Workspace Backup",
+      "cadence": "scheduled",
+      "connectors": ["filesystem", "remote-shell"],
+      "prompt_file": "prompts/workspace-backup.md",
+      "writes": ["hub/MEMORY/backups/"],
+      "closeout": "Verify required paths at the destination and report failures explicitly."
+    },
+    {
+      "id": "receipt-packet-assembly",
+      "title": "Receipt Packet Assembly",
+      "cadence": "scheduled or request-driven",
+      "connectors": ["email", "filesystem"],
+      "prompt_file": "prompts/receipt-packet-assembly.md",
+      "writes": ["local-private/receipts/", "hub/MEMORY/comms.md"],
+      "closeout": "Keep private packet evidence out of git and record only non-sensitive memory."
+    },
+    {
+      "id": "chat-file-intake",
+      "title": "Chat File Intake",
+      "cadence": "trigger-driven",
+      "connectors": ["chat", "filesystem", "tasks"],
+      "prompt_file": "prompts/chat-file-intake.md",
+      "writes": ["work-items/<id>/source/chat-uploads/", "work-items/<id>/metadata/"],
+      "closeout": "Preserve source bytes, require metadata, and create a task draft when the package remains incomplete."
+    }
+  ]
+}
