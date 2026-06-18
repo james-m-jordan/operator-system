@@ -1,7 +1,7 @@
 # Operator System Completion Matrix
 
 - Audit result: **PASS**
-- Checks passed: 75
+- Checks passed: 78
 - Checks failed: 0
 
 ## Matrix
@@ -9,6 +9,7 @@
 | Check | Status | Evidence |
 | --- | --- | --- |
 | required file: README.md | PASS | `README.md` |
+| required file: LICENSE | PASS | `LICENSE` |
 | required file: BLUEPRINT.md | PASS | `BLUEPRINT.md` |
 | required file: INSTALL.md | PASS | `INSTALL.md` |
 | required file: MIGRATION.md | PASS | `MIGRATION.md` |
@@ -80,9 +81,11 @@
 | release archive builds | PASS | `operator-system-starter-audit.tar.gz` |
 | release manifest exists | PASS | `operator-system-starter-audit.manifest.json` |
 | release archive exists | PASS | `operator-system-starter-audit.tar.gz` |
-| release manifest has expected breadth | PASS | `file_count=46` |
+| release manifest has expected breadth | PASS | `file_count=48` |
 | release includes chat fetch helper | PASS | `manifest files` |
 | release includes audit helper | PASS | `manifest files` |
+| release includes license | PASS | `manifest files` |
+| release excludes git metadata | PASS | `manifest files` |
 
 ## Remaining Work
 

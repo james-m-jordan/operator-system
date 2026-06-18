@@ -21,6 +21,7 @@ This is a packaged starter kit, not a hosted application. It contains:
 
 - `BLUEPRINT.md` - the generalized system architecture and current porting map
 - `COMPLETION-MATRIX.md` - the generated release audit matrix
+- `LICENSE` - Apache License 2.0 terms for reuse and redistribution
 - `config/org.example.json` - an example organization config
 - `templates/` - organization-neutral starter files
 - `scripts/scaffold_workspace.py` - a standard-library scaffold command
@@ -40,8 +41,8 @@ This is a packaged starter kit, not a hosted application. It contains:
 Preview the generated workspace in a throwaway path:
 
 ```bash
-python3 hub/distribution/operator-system/scripts/scaffold_workspace.py \
-  --config hub/distribution/operator-system/config/org.example.json \
+python3 scripts/scaffold_workspace.py \
+  --config config/org.example.json \
   --out /tmp/operator-system-demo \
   --force
 ```
@@ -49,9 +50,9 @@ python3 hub/distribution/operator-system/scripts/scaffold_workspace.py \
 Run the smoke tests:
 
 ```bash
-python3 -m unittest hub/distribution/operator-system/tests/test_scaffold_workspace.py
-python3 hub/distribution/operator-system/scripts/audit_release.py --json
-python3 hub/distribution/operator-system/scripts/package_release.py --out /tmp/operator-system-release
+python3 -m unittest tests/test_scaffold_workspace.py
+python3 scripts/audit_release.py --json
+python3 scripts/package_release.py --out /tmp/operator-system-release
 ```
 
 After scaffolding, the generated workspace can refresh its own startup state:
@@ -102,3 +103,9 @@ needs deeper native integrations:
 
 Those adapters should read an org config rather than hard-coded paths, repo
 names, Slack channels, or lab-specific metadata fields.
+
+## License
+
+Licensed under the Apache License, Version 2.0. See `LICENSE`.
+
+Copyright 2026 James M. Jordan.

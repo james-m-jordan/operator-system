@@ -19,6 +19,7 @@ PACKAGE_SCRIPT = PACKAGE_ROOT / "scripts" / "package_release.py"
 
 REQUIRED_FILES = [
     "README.md",
+    "LICENSE",
     "BLUEPRINT.md",
     "INSTALL.md",
     "MIGRATION.md",
@@ -192,6 +193,9 @@ def audit_release_archive() -> list[dict[str, Any]]:
             results.append(check(manifest.get("file_count", 0) >= 40, "release manifest has expected breadth", f"file_count={manifest.get('file_count')}"))
             results.append(check("templates/hub/scripts/chat_file_fetch.py" in file_paths, "release includes chat fetch helper", "manifest files"))
             results.append(check("scripts/audit_release.py" in file_paths, "release includes audit helper", "manifest files"))
+            results.append(check("LICENSE" in file_paths, "release includes license", "manifest files"))
+            vcs_paths = sorted(path for path in file_paths if isinstance(path, str) and (path == ".git" or path.startswith(".git/")))
+            results.append(check(not vcs_paths, "release excludes git metadata", "; ".join(vcs_paths) or "manifest files"))
     return results
 
 

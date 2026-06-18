@@ -10,14 +10,6 @@ python3 -m py_compile scripts/*.py templates/hub/scripts/*.py
 python3 scripts/audit_release.py --write COMPLETION-MATRIX.md
 ```
 
-From the repository root used by the live workspace, the equivalent commands are:
-
-```bash
-python3 -m unittest hub/distribution/operator-system/tests/test_scaffold_workspace.py
-python3 -m py_compile hub/distribution/operator-system/scripts/*.py hub/distribution/operator-system/templates/hub/scripts/*.py
-python3 hub/distribution/operator-system/scripts/audit_release.py --write COMPLETION-MATRIX.md
-```
-
 ## Manual Smoke Test
 
 ```bash
@@ -73,6 +65,6 @@ config surfaces, generated workspace neutrality, and archive contents.
 - Chat file fetches land in ignored `local-private/` before any canonical work
   item intake.
 - The release notes name any missing provider-native connector adapters.
-- The package includes `README.md`, `INSTALL.md`, `MIGRATION.md`,
+- The package includes `README.md`, `LICENSE`, `INSTALL.md`, `MIGRATION.md`,
   `BLUEPRINT.md`, `RELEASE-CHECKLIST.md`, `COMPLETION-MATRIX.md`, `config/`,
   `templates/`, `scripts/`, and `tests/`.
