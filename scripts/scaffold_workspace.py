@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 from datetime import date
@@ -60,7 +61,8 @@ def write_text(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def copy_templates(destination: Path, tokens: dict[str, str]) -> None:
+def copy_templates(destination: Path, tokens: dict[str, str]) -> dict[str, str]:
+    hashes: dict[str, str] = {}
     for source in TEMPLATE_ROOT.rglob("*"):
         if source.is_dir():
             continue
@@ -68,8 +70,10 @@ def copy_templates(destination: Path, tokens: dict[str, str]) -> None:
             continue
         relative = source.relative_to(TEMPLATE_ROOT)
         target = destination / relative
-        text = source.read_text(encoding="utf-8")
-        write_text(target, render_text(text, tokens))
+        rendered = render_text(source.read_text(encoding="utf-8"), tokens)
+        write_text(target, rendered)
+        hashes[relative.as_posix()] = hashlib.sha256(rendered.encode("utf-8")).hexdigest()
+    return hashes
 
 
 def write_generated_files(destination: Path, config: dict[str, Any], tokens: dict[str, str]) -> None:
@@ -160,6 +164,8 @@ Generated helper scripts:
 - `state_digest.py` - regenerates `hub/MEMORY/state-digest.md`.
 - `memory_health.py` - measures compact memory surfaces against `memory_budgets`.
 - `memory_compact.py` - rotates old action-log entries into `hub/MEMORY/archive/` (dry-run by default).
+- `memory_search.py` - keyword search across memory, wiki, knowledge base, and archives.
+- `run_close.py` - records the outcome and improvement of one automation run.
 - `package_gate.py` - checks whether one work item has source, metadata, and context.
 - `install_automations.py` - installs automation prompt/spec bundles from `hub/automations/automation-manifest.json`.
 - `task_draft.py` - writes no-terminal collaborator task drafts under `hub/MEMORY/task-drafts/`.
@@ -193,6 +199,8 @@ Export runtime adapter drafts and create a local run packet:
 ```bash
 python3 hub/scripts/export_runtime_adapters.py --root .
 python3 hub/scripts/run_automation.py --root . --automation-id morning-control-panel
+python3 hub/scripts/run_close.py --root . --latest --outcome success --improvement lesson --improvement-ref hub/MEMORY/LESSONS.md
+python3 hub/scripts/memory_search.py --root . --query "keyword"
 python3 hub/scripts/publish_status.py --root . --publisher status --message "Status text here"
 python3 hub/scripts/deliver_outbox.py --root . --publisher status --latest
 python3 hub/scripts/backup_transfer.py --root . --write-report
@@ -218,8 +226,13 @@ def scaffold(config: dict[str, Any], destination: Path, force: bool = False) -> 
             shutil.rmtree(destination)
     destination.mkdir(parents=True, exist_ok=True)
     tokens = token_map(config)
-    copy_templates(destination, tokens)
+    template_hashes = copy_templates(destination, tokens)
     write_generated_files(destination, config, tokens)
+    manifest = {"generated": tokens["{{DATE}}"], "files": template_hashes}
+    write_text(
+        destination / str(config["hub_root"]) / "config" / "template-manifest.json",
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

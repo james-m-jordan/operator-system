@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -10,6 +11,8 @@ from pathlib import Path
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "scaffold_workspace.py"
 PACKAGE_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "package_release.py"
 AUDIT_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "audit_release.py"
+UPGRADE_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "upgrade_workspace.py"
+TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "templates"
 
 
 def load_scaffold_module():
@@ -141,7 +144,12 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             )
             (work_item / "source" / "request.txt").write_text("source", encoding="utf-8")
             (work_item / "metadata" / "map.csv").write_text("file,meaning\nrequest.txt,source request\n", encoding="utf-8")
-            (work_item / "next-actions.md").write_text("- BLOCKED until approval to send.\n", encoding="utf-8")
+            (work_item / "next-actions.md").write_text(
+                "- BLOCKED until approval to send.\n"
+                "- BLOCKED until approval to send.\n"
+                "- The summary needs data from Alex.\n",
+                encoding="utf-8",
+            )
             remote_upload = Path(tmpdir) / "remote-upload.txt"
             remote_upload.write_text("remote evidence", encoding="utf-8")
 
@@ -158,6 +166,9 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
                 [sys.executable, "hub/scripts/backup_verify.py", "--root", ".", "--write-report"],
                 [sys.executable, "hub/scripts/export_runtime_adapters.py", "--root", "."],
                 [sys.executable, "hub/scripts/run_automation.py", "--root", ".", "--automation-id", "morning-control-panel"],
+                [sys.executable, "hub/scripts/run_close.py", "--root", ".", "--latest", "--outcome", "success", "--improvement", "lesson", "--improvement-ref", "hub/MEMORY/LESSONS.md"],
+                [sys.executable, "hub/scripts/memory_search.py", "--root", ".", "--query", "case001"],
+                [sys.executable, "hub/scripts/memory_health.py", "--root", ".", "--write"],
                 [sys.executable, "hub/scripts/publish_status.py", "--root", ".", "--publisher", "status", "--message", "Ready"],
                 [sys.executable, "hub/scripts/deliver_outbox.py", "--root", ".", "--publisher", "status", "--latest"],
                 [sys.executable, "hub/scripts/backup_transfer.py", "--root", ".", "--destination", "local-private/backup-copy", "--execute", "--write-report"],
@@ -176,8 +187,22 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             self.assertIn("Memory Health", digest)
             health = json.loads((destination / "hub" / "MEMORY" / "indexes" / "memory-health.json").read_text(encoding="utf-8"))
             self.assertTrue(health["ok"], msg=health)
+            unclosed = next(check for check in health["checks"] if check["name"] == "unclosed_automation_runs")
+            self.assertEqual(unclosed["value"], 0)
             history = (destination / "hub" / "MEMORY" / "indexes" / "memory-health-history.jsonl").read_text(encoding="utf-8")
-            self.assertGreaterEqual(len(history.strip().splitlines()), 1)
+            self.assertGreaterEqual(len(history.strip().splitlines()), 2)
+            blocker_index = json.loads((destination / "hub" / "MEMORY" / "indexes" / "blocker-index.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(blocker_index), 2)
+            self.assertEqual(blocker_index[0]["confidence"], "explicit")
+            self.assertEqual(blocker_index[1]["confidence"], "inferred")
+            close_files = list((destination / "hub" / "MEMORY" / "automation-runs").glob("*/close.json"))
+            self.assertEqual(len(close_files), 1)
+            close = json.loads(close_files[0].read_text(encoding="utf-8"))
+            self.assertEqual(close["outcome"], "success")
+            self.assertEqual(close["improvement"], "lesson")
+            run_packet = next((destination / "hub" / "MEMORY" / "automation-runs").glob("*/run.md")).read_text(encoding="utf-8")
+            self.assertIn("## Active Lessons", run_packet)
+            self.assertIn("## Required Closeout", run_packet)
             self.assertTrue((destination / ".operator-automations" / "morning-control-panel" / "automation.json").exists())
             self.assertTrue((destination / "hub" / "MEMORY" / "task-drafts").is_dir())
             self.assertTrue((destination / "hub" / "MEMORY" / "backups").is_dir())
@@ -275,6 +300,80 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             self.assertIn("action 6", archived)
             self.assertNotIn("action 7", archived)
             self.assertNotIn("undated note", archived)
+
+    def test_memory_search_ranks_matches(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            self.module.scaffold(self.config, destination)
+            (destination / "hub" / "MEMORY" / "comms.md").write_text(
+                "# Communication Memory\n\n- Decided to retire the zebra pipeline.\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [sys.executable, "hub/scripts/memory_search.py", "--root", ".", "--query", "zebra"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            self.assertIn("comms.md", result.stdout)
+            self.assertIn("zebra pipeline", result.stdout)
+
+            empty = subprocess.run(
+                [sys.executable, "hub/scripts/memory_search.py", "--root", ".", "--query", "nonexistentterm"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(empty.returncode, 0, msg=empty.stderr)
+            self.assertIn("No matches", empty.stdout)
+
+    def test_upgrade_workspace_applies_safe_updates(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            self.module.scaffold(self.config, destination)
+
+            kit = Path(tmpdir) / "kit"
+            shutil.copytree(TEMPLATE_ROOT, kit / "templates")
+            (kit / "templates" / "hub" / "scripts" / "new_helper.py").write_text("print('new helper')\n", encoding="utf-8")
+            kit_script = kit / "templates" / "hub" / "scripts" / "state_digest.py"
+            kit_script.write_text(kit_script.read_text(encoding="utf-8") + "\n# kit-improvement\n", encoding="utf-8")
+            kit_agents = kit / "templates" / "AGENTS.md"
+            kit_agents.write_text(kit_agents.read_text(encoding="utf-8") + "\nKit note.\n", encoding="utf-8")
+            workspace_agents = destination / "AGENTS.md"
+            workspace_agents.write_text(
+                workspace_agents.read_text(encoding="utf-8") + "\nLocal customization.\n", encoding="utf-8"
+            )
+
+            dry_run = subprocess.run(
+                [sys.executable, str(UPGRADE_SCRIPT_PATH), "--workspace", str(destination), "--kit-root", str(kit)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(dry_run.returncode, 0, msg=dry_run.stderr)
+            self.assertIn("add: hub/scripts/new_helper.py", dry_run.stdout)
+            self.assertIn("update: hub/scripts/state_digest.py", dry_run.stdout)
+            self.assertIn("conflict: AGENTS.md", dry_run.stdout)
+            self.assertFalse((destination / "hub" / "scripts" / "new_helper.py").exists())
+
+            result = subprocess.run(
+                [sys.executable, str(UPGRADE_SCRIPT_PATH), "--workspace", str(destination), "--kit-root", str(kit), "--execute"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            self.assertTrue((destination / "hub" / "scripts" / "new_helper.py").exists())
+            self.assertIn("# kit-improvement", (destination / "hub" / "scripts" / "state_digest.py").read_text(encoding="utf-8"))
+            upgraded_agents = workspace_agents.read_text(encoding="utf-8")
+            self.assertIn("Local customization.", upgraded_agents)
+            self.assertNotIn("Kit note.", upgraded_agents)
+            manifest = json.loads((destination / "hub" / "config" / "template-manifest.json").read_text(encoding="utf-8"))
+            self.assertIn("hub/scripts/new_helper.py", manifest["files"])
 
     def test_package_gate_blocks_incomplete_work_item(self):
         with tempfile.TemporaryDirectory() as tmpdir:

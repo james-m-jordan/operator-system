@@ -35,6 +35,14 @@ python3 hub/scripts/state_digest.py --root .
 python3 hub/scripts/memory_health.py --root . --write
 ```
 
+When a newer starter kit is released, pull its improvements into the
+workspace with the kit's upgrade command (dry-run first):
+
+```bash
+python3 /path/to/starter-kit/scripts/upgrade_workspace.py --workspace .
+python3 /path/to/starter-kit/scripts/upgrade_workspace.py --workspace . --execute
+```
+
 ## 3. Install Automation Specs
 
 ```bash

@@ -13,7 +13,20 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from operator_common import hub_dir, load_config, read_text, relpath, resolve_root, write_json, write_text
+from operator_common import hub_dir, load_config, memory_dir, read_text, relpath, resolve_root, write_json, write_text
+
+
+def active_lessons(root: Path, config: dict[str, object]) -> list[str]:
+    """Return the Active Lessons bullets from hub/MEMORY/LESSONS.md."""
+    lessons = []
+    in_section = False
+    for line in read_text(memory_dir(root, config) / "LESSONS.md").splitlines():
+        if line.startswith("## "):
+            in_section = line.strip() == "## Active Lessons"
+            continue
+        if in_section and line.startswith("- "):
+            lessons.append(line)
+    return lessons
 
 
 def load_manifest(root: Path, config: dict[str, object]) -> dict[str, object]:
@@ -50,6 +63,8 @@ def build_run_packet(root: Path, config: dict[str, object], automation: dict[str
         "writes": automation.get("writes", []),
         "closeout": automation.get("closeout", ""),
     }
+    lessons = active_lessons(root, config)
+    lessons_block = "\n".join(lessons) if lessons else "- No active lessons recorded yet."
     text = (
         f"# Automation Run Packet: {automation['title']}\n\n"
         f"- Run ID: `{run_id}`\n"
@@ -67,6 +82,9 @@ def build_run_packet(root: Path, config: dict[str, object], automation: dict[str
         "python3 hub/scripts/state_digest.py --root .\n"
         "python3 hub/scripts/memory_health.py --root . --write\n"
         "```\n\n"
+        "## Active Lessons\n\n"
+        "Apply these standing lessons from `hub/MEMORY/LESSONS.md` during the run:\n\n"
+        f"{lessons_block}\n\n"
         "## Required Closeout\n\n"
         "1. Record the run in `hub/MEMORY/agent-action-log.md`.\n"
         "2. Leave one improvement: add or re-confirm a lesson in\n"
@@ -75,6 +93,11 @@ def build_run_packet(root: Path, config: dict[str, object], automation: dict[str
         "3. Refresh memory health and fix any budget violation you introduced:\n\n"
         "```bash\n"
         "python3 hub/scripts/memory_health.py --root . --write\n"
+        "```\n\n"
+        "4. Close the run record so the outcome and improvement are tracked:\n\n"
+        "```bash\n"
+        f"python3 hub/scripts/run_close.py --root . --run-id {run_id} "
+        "--outcome success --improvement lesson --improvement-ref hub/MEMORY/LESSONS.md\n"
         "```\n\n"
         "## Prompt\n\n"
         f"{prompt.rstrip()}\n"

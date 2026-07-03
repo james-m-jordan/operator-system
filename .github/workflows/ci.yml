@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile all scripts
+        run: python3 -m py_compile scripts/*.py templates/hub/scripts/*.py
+      - name: Run tests
+        run: python3 -m unittest tests/test_scaffold_workspace.py -v
+      - name: Release audit
+        run: python3 scripts/audit_release.py --json

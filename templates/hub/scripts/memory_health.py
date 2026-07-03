@@ -32,6 +32,42 @@ def line_count(path: Path) -> int:
     return len(text.splitlines()) if text else 0
 
 
+def count_active_lessons(path: Path) -> int:
+    count = 0
+    in_section = False
+    for line in read_text(path).splitlines():
+        if line.startswith("## "):
+            in_section = line.strip() == "## Active Lessons"
+            continue
+        if in_section and line.startswith("- "):
+            count += 1
+    return count
+
+
+def run_close_stats(root: Path, config: dict[str, object]) -> tuple[int, int, int]:
+    """Return (total runs, unclosed runs, runs closed without an improvement)."""
+    runtime = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
+    run_root = root / str(runtime.get("run_root", "hub/MEMORY/automation-runs"))
+    total = unclosed = no_improvement = 0
+    if not run_root.exists():
+        return total, unclosed, no_improvement
+    for child in sorted(run_root.iterdir()):
+        if not (child / "run.json").exists():
+            continue
+        total += 1
+        close_path = child / "close.json"
+        if not close_path.exists():
+            unclosed += 1
+            continue
+        try:
+            close = json.loads(close_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if close.get("improvement", "none") == "none":
+            no_improvement += 1
+    return total, unclosed, no_improvement
+
+
 def top_of_mind_ages(path: Path, today: date, max_age_days: int) -> tuple[int, int, int]:
     """Return (dated entries, undated entries, stale dated entries) in Top Of Mind."""
     dated = undated = stale = 0
@@ -66,6 +102,8 @@ def build_report(root: Path, config: dict[str, object]) -> dict[str, object]:
 
     _, log_entries = split_action_log(read_text(mem / "agent-action-log.md"))
     lessons_path = mem / "LESSONS.md"
+    active_lessons = count_active_lessons(lessons_path)
+    total_runs, unclosed_runs, runs_without_improvement = run_close_stats(root, config)
 
     checks = [
         {
@@ -94,6 +132,12 @@ def build_report(root: Path, config: dict[str, object]) -> dict[str, object]:
             "budget": 0,
             "note": f"dated entries older than {max_age} days",
         },
+        {
+            "name": "unclosed_automation_runs",
+            "value": unclosed_runs,
+            "budget": budgets["unclosed_runs_max"],
+            "note": "run packets without a close.json outcome record",
+        },
     ]
     for check in checks:
         check["ok"] = check["value"] <= check["budget"]
@@ -104,6 +148,10 @@ def build_report(root: Path, config: dict[str, object]) -> dict[str, object]:
         notes.append("LESSONS.md missing; create it from the starter template.")
     if undated:
         notes.append(f"Top Of Mind has {undated} undated entries; add dates so staleness is measurable.")
+    if runs_without_improvement:
+        notes.append(
+            f"{runs_without_improvement} of {total_runs} closed runs recorded no improvement; the ratchet expects one per substantive run."
+        )
 
     return {
         "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -111,6 +159,9 @@ def build_report(root: Path, config: dict[str, object]) -> dict[str, object]:
         "checks": checks,
         "top_of_mind_dated_entries": dated,
         "top_of_mind_undated_entries": undated,
+        "active_lessons": active_lessons,
+        "automation_runs": total_runs,
+        "runs_closed_without_improvement": runs_without_improvement,
         "violations": violations,
         "notes": notes,
         "ok": not violations,
@@ -121,6 +172,8 @@ def render_summary(report: dict[str, object]) -> str:
     lines = ["# Memory Health", ""]
     lines.append(f"- Generated: {report['generated_utc']}")
     lines.append(f"- Status: {'ok' if report['ok'] else 'over budget'}")
+    lines.append(f"- Active lessons: {report['active_lessons']}")
+    lines.append(f"- Automation runs: {report['automation_runs']} ({report['runs_closed_without_improvement']} closed without improvement)")
     lines.append("")
     lines.append("| check | value | budget | ok |")
     lines.append("| --- | --- | --- | --- |")
@@ -146,11 +199,15 @@ def main() -> int:
     if args.write:
         index_dir = memory_dir(root, config) / "indexes"
         write_json(index_dir / "memory-health.json", report)
+        metrics = {check["name"]: check["value"] for check in report["checks"]}
+        metrics["active_lessons"] = report["active_lessons"]
+        metrics["automation_runs"] = report["automation_runs"]
+        metrics["runs_closed_without_improvement"] = report["runs_closed_without_improvement"]
         history_line = {
             "generated_utc": report["generated_utc"],
             "ok": report["ok"],
             "violations": report["violations"],
-            "metrics": {check["name"]: check["value"] for check in report["checks"]},
+            "metrics": metrics,
         }
         history_path = index_dir / "memory-health-history.jsonl"
         history_path.parent.mkdir(parents=True, exist_ok=True)

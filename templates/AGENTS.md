@@ -86,8 +86,17 @@ escalates the task.
 4. Run gates before analysis, transformation, or publication.
 5. Produce organized outputs in the owning work-item or hub surface.
 6. Log what changed, why it matters, and the next action.
-7. Commit or publish only coherent changes that belong to the touched surface.
-8. Leave touched repos clean, synced, and free of hidden parked work.
+7. For automation runs, close the run record with
+   `python3 hub/scripts/run_close.py --root . --latest --outcome <outcome> --improvement <type>`.
+8. Commit or publish only coherent changes that belong to the touched surface.
+9. Leave touched repos clean, synced, and free of hidden parked work.
+
+When current context is not enough, search deeper history before re-deriving
+facts:
+
+```bash
+python3 hub/scripts/memory_search.py --root . --query "keywords here"
+```
 
 ## Work Package Gate
 

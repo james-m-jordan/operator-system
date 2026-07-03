@@ -1,7 +1,7 @@
 # Operator System Completion Matrix
 
 - Audit result: **PASS**
-- Checks passed: 84
+- Checks passed: 91
 - Checks failed: 0
 
 ## Matrix
@@ -19,6 +19,8 @@
 | required file: scripts/audit_release.py | PASS | `scripts/audit_release.py` |
 | required file: scripts/package_release.py | PASS | `scripts/package_release.py` |
 | required file: scripts/scaffold_workspace.py | PASS | `scripts/scaffold_workspace.py` |
+| required file: scripts/upgrade_workspace.py | PASS | `scripts/upgrade_workspace.py` |
+| required file: .github/workflows/ci.yml | PASS | `.github/workflows/ci.yml` |
 | required file: templates/AGENTS.md | PASS | `templates/AGENTS.md` |
 | required file: templates/hub/automations.md | PASS | `templates/hub/automations.md` |
 | required file: templates/hub/automations/automation-manifest.json | PASS | `templates/hub/automations/automation-manifest.json` |
@@ -34,11 +36,13 @@
 | generated helper script: memory_compact.py | PASS | `templates/hub/scripts/memory_compact.py` |
 | generated helper script: memory_health.py | PASS | `templates/hub/scripts/memory_health.py` |
 | generated helper script: memory_index_refresh.py | PASS | `templates/hub/scripts/memory_index_refresh.py` |
+| generated helper script: memory_search.py | PASS | `templates/hub/scripts/memory_search.py` |
 | generated helper script: operator_common.py | PASS | `templates/hub/scripts/operator_common.py` |
 | generated helper script: package_gate.py | PASS | `templates/hub/scripts/package_gate.py` |
 | generated helper script: preflight_capabilities.py | PASS | `templates/hub/scripts/preflight_capabilities.py` |
 | generated helper script: publish_status.py | PASS | `templates/hub/scripts/publish_status.py` |
 | generated helper script: run_automation.py | PASS | `templates/hub/scripts/run_automation.py` |
+| generated helper script: run_close.py | PASS | `templates/hub/scripts/run_close.py` |
 | generated helper script: state_digest.py | PASS | `templates/hub/scripts/state_digest.py` |
 | generated helper script: sync_workspace.py | PASS | `templates/hub/scripts/sync_workspace.py` |
 | generated helper script: task_draft.py | PASS | `templates/hub/scripts/task_draft.py` |
@@ -79,6 +83,9 @@
 | generated path: hub/scripts/preflight_capabilities.py | PASS | `hub/scripts/preflight_capabilities.py` |
 | generated path: hub/scripts/memory_health.py | PASS | `hub/scripts/memory_health.py` |
 | generated path: hub/scripts/memory_compact.py | PASS | `hub/scripts/memory_compact.py` |
+| generated path: hub/scripts/memory_search.py | PASS | `hub/scripts/memory_search.py` |
+| generated path: hub/scripts/run_close.py | PASS | `hub/scripts/run_close.py` |
+| generated path: hub/config/template-manifest.json | PASS | `hub/config/template-manifest.json` |
 | generated path: hub/scripts/chat_file_fetch.py | PASS | `hub/scripts/chat_file_fetch.py` |
 | generated path: hub/scripts/deliver_outbox.py | PASS | `hub/scripts/deliver_outbox.py` |
 | generated path: work-items/README.md | PASS | `work-items/README.md` |
@@ -87,7 +94,7 @@
 | release archive builds | PASS | `operator-system-starter-audit.tar.gz` |
 | release manifest exists | PASS | `operator-system-starter-audit.manifest.json` |
 | release archive exists | PASS | `operator-system-starter-audit.tar.gz` |
-| release manifest has expected breadth | PASS | `file_count=51` |
+| release manifest has expected breadth | PASS | `file_count=55` |
 | release includes chat fetch helper | PASS | `manifest files` |
 | release includes audit helper | PASS | `manifest files` |
 | release includes license | PASS | `manifest files` |

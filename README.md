@@ -67,6 +67,8 @@ python3 hub/scripts/memory_health.py --root . --write
 python3 hub/scripts/install_automations.py --root . --out .operator-automations
 python3 hub/scripts/export_runtime_adapters.py --root .
 python3 hub/scripts/run_automation.py --root . --automation-id morning-control-panel
+python3 hub/scripts/run_close.py --root . --latest --outcome success --improvement lesson --improvement-ref hub/MEMORY/LESSONS.md
+python3 hub/scripts/memory_search.py --root . --query "scaffold"
 python3 hub/scripts/publish_status.py --root . --publisher status --message "Ready for review"
 python3 hub/scripts/deliver_outbox.py --root . --publisher status --latest
 python3 hub/scripts/backup_transfer.py --root . --write-report
@@ -76,6 +78,17 @@ python3 hub/scripts/chat_file_fetch.py --root . --provider direct-url --url file
 
 See `INSTALL.md` for the full bootstrap flow and `MIGRATION.md` for bringing an
 existing workspace into this structure.
+
+When the starter kit gains new templates or script fixes, existing scaffolded
+workspaces can adopt them without losing local data:
+
+```bash
+python3 scripts/upgrade_workspace.py --workspace /path/to/workspace
+python3 scripts/upgrade_workspace.py --workspace /path/to/workspace --execute
+```
+
+The upgrade never touches `hub/MEMORY/` or `hub/admin-docs/`, and skips any
+file the workspace has modified locally (reported as conflicts).
 
 ## Distribution Boundaries
 

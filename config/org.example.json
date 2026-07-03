@@ -30,7 +30,8 @@
     "state_digest_max_lines": 200,
     "lessons_max_lines": 80,
     "action_log_max_entries": 100,
-    "top_of_mind_max_age_days": 45
+    "top_of_mind_max_age_days": 45,
+    "unclosed_runs_max": 5
   },
   "file_sources": {
     "chat": {

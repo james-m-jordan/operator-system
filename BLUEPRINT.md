@@ -63,6 +63,9 @@ The live `lia-live` automation set maps to these portable modules:
 | `state_digest.py` | Current-State Digest | Generic helper included. |
 | Memory budget enforcement | Memory Health Snapshot (`memory_health.py`) | Generic helper included. |
 | Action log rotation | Memory Compaction (`memory_compact.py`) | Generic helper included. |
+| Deep-history retrieval | Memory Search (`memory_search.py`) | Generic helper included. |
+| Run outcome tracking | Run Closeout (`run_close.py`) | Generic helper included. |
+| Kit-to-workspace updates | Workspace Upgrade (`scripts/upgrade_workspace.py` + template manifest) | Generic helper included. |
 | `work_package_gate.py` | Work Package Gate | Generic helper included. |
 | Automation TOML/prompt installs | Automation Manifest Installer | Generic helper included. |
 | Easy-mode issue drafting | Task Draft Helper | Generic helper included. |

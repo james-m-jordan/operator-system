@@ -24,6 +24,77 @@ def load_json(path: Path, default):
         return default
 
 
+def health_trend(history_path: Path) -> str:
+    """Compare the two most recent health snapshots and describe the deltas."""
+    lines = [line for line in read_text(history_path).splitlines() if line.strip()]
+    if len(lines) < 2:
+        return ""
+    try:
+        previous = json.loads(lines[-2]).get("metrics", {})
+        current = json.loads(lines[-1]).get("metrics", {})
+    except Exception:
+        return ""
+    deltas = []
+    for name in sorted(set(previous) | set(current)):
+        change = current.get(name, 0) - previous.get(name, 0)
+        if change:
+            deltas.append(f"{name} {'+' if change > 0 else ''}{change}")
+    return ", ".join(deltas) if deltas else "no change"
+
+
+def cron_max_gap_hours(cron: str) -> int:
+    """Coarse expected max gap between runs for a cron expression."""
+    fields = cron.split()
+    if len(fields) != 5:
+        return 26
+    _, hour, day_of_month, _, day_of_week = fields
+    if day_of_month != "*":
+        return 32 * 24
+    if day_of_week != "*":
+        return 8 * 24
+    if hour != "*":
+        return 26
+    return 3
+
+
+def automation_heartbeat(root: Path, config: dict[str, object]) -> list[str]:
+    """Report last-run recency per enabled automation schedule."""
+    schedules = config.get("automation_schedules", {})
+    if not isinstance(schedules, dict) or not schedules:
+        return ["- No automation schedules configured."]
+    runtime = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
+    run_root = root / str(runtime.get("run_root", "hub/MEMORY/automation-runs"))
+    last_run: dict[str, str] = {}
+    if run_root.exists():
+        for child in sorted(run_root.iterdir()):
+            meta = load_json(child / "run.json", {})
+            automation_id = str(meta.get("automation_id", ""))
+            created = str(meta.get("created_utc", ""))
+            if automation_id and created > last_run.get(automation_id, ""):
+                last_run[automation_id] = created
+    now = datetime.now(timezone.utc)
+    lines = []
+    for automation_id, schedule in sorted(schedules.items()):
+        if not isinstance(schedule, dict) or not schedule.get("enabled"):
+            continue
+        max_gap = schedule.get("max_gap_hours") or cron_max_gap_hours(str(schedule.get("cron", "")))
+        last = last_run.get(automation_id)
+        if not last:
+            lines.append(f"- `{automation_id}`: no runs recorded yet (expected every ~{max_gap}h).")
+            continue
+        try:
+            last_dt = datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            age_hours = (now - last_dt).total_seconds() / 3600
+        except ValueError:
+            lines.append(f"- `{automation_id}`: last run timestamp unreadable ({last}).")
+            continue
+        if age_hours > max_gap:
+            lines.append(f"- `{automation_id}`: OVERDUE - last run {last}, {age_hours:.0f}h ago (expected every ~{max_gap}h).")
+        else:
+            lines.append(f"- `{automation_id}`: ok - last run {last}.")
+    return lines or ["- No enabled automation schedules."]
+
+
 def latest_sync_report(mem: Path) -> Path | None:
     reports = sorted((mem / "repo-syncs").glob("repo-sync-*.md"))
     return reports[-1] if reports else None
@@ -129,6 +200,13 @@ def main() -> int:
             lines.append(f"- Budgets: {metrics}")
     else:
         lines.append("- No memory-health snapshot yet. Run `python3 hub/scripts/memory_health.py --root . --write`.")
+    trend = health_trend(index_dir / "memory-health-history.jsonl")
+    if trend:
+        lines.append(f"- Trend vs previous snapshot: {trend}")
+    lines.append("")
+    lines.append("## Automation Heartbeat")
+    lines.append("")
+    lines.extend(automation_heartbeat(root, config))
     lines.append("")
     lines.append("## Pointers")
     lines.append("")

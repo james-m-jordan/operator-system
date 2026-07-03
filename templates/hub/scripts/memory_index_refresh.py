@@ -22,6 +22,7 @@ SOURCE_DIR_NAMES = {"source", "sources", "raw-data", "raw", "input", "inputs"}
 METADATA_DIR_NAMES = {"metadata", "meta", "maps"}
 OUTPUT_DIR_NAMES = {"analysis", "outputs", "output", "results", "figures"}
 BLOCKER_RE = re.compile(r"\b(blocked|blocker|waiting|needs|todo|next action|required)\b", re.IGNORECASE)
+EXPLICIT_BLOCKER_RE = re.compile(r"^(blocked|blocker|waiting|todo|next action)\b", re.IGNORECASE)
 
 
 def first_heading(path: Path) -> str:
@@ -50,14 +51,26 @@ def files_in_named_dirs(path: Path, names: set[str]) -> list[Path]:
     return sorted(files)
 
 
-def blocker_lines(path: Path) -> list[str]:
-    lines = []
+def blocker_lines(path: Path) -> list[dict[str, str]]:
+    """Collect deduplicated blocker lines, explicit markers ranked first."""
+    explicit: list[dict[str, str]] = []
+    inferred: list[dict[str, str]] = []
+    seen: set[str] = set()
     for candidate in [path / "next-actions.md", path / "decisions.md", path / "README.md"]:
         for line in read_text(candidate).splitlines():
             stripped = line.strip()
-            if stripped and BLOCKER_RE.search(stripped):
-                lines.append(stripped.lstrip("- ").strip())
-    return lines[:20]
+            if not stripped or not BLOCKER_RE.search(stripped):
+                continue
+            text = stripped.lstrip("- ").strip()
+            key = text.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            if EXPLICIT_BLOCKER_RE.match(text):
+                explicit.append({"text": text, "confidence": "explicit"})
+            else:
+                inferred.append({"text": text, "confidence": "inferred"})
+    return (explicit + inferred)[:20]
 
 
 def package_status(has_readme: bool, source_count: int, metadata_count: int, output_count: int) -> str:
@@ -96,11 +109,19 @@ def build_indexes(root: Path, config: dict[str, object]) -> tuple[list[dict[str,
             "metadata_file_count": len(metadata_files),
             "output_file_count": len(output_files),
             "blocker_count": len(item_blockers),
-            "next_actions": item_blockers[:5],
+            "next_actions": [blocker["text"] for blocker in item_blockers[:5]],
         }
         items.append(record)
-        for text in item_blockers:
-            blockers.append({"work_item_id": item_dir.name, "source": record["path"], "text": text, "next_action": text})
+        for blocker in item_blockers:
+            blockers.append(
+                {
+                    "work_item_id": item_dir.name,
+                    "source": record["path"],
+                    "text": blocker["text"],
+                    "next_action": blocker["text"],
+                    "confidence": blocker["confidence"],
+                }
+            )
 
     summary = {
         "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

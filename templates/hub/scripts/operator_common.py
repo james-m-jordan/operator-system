@@ -22,6 +22,7 @@ DEFAULT_MEMORY_BUDGETS = {
     "lessons_max_lines": 80,
     "action_log_max_entries": 100,
     "top_of_mind_max_age_days": 45,
+    "unclosed_runs_max": 5,
 }
 
 
