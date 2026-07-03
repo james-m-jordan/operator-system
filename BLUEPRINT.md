@@ -31,7 +31,9 @@ queryable:
 | `hub/MEMORY/state-digest.md` | Regenerated current-state working set. Read on every admin run. |
 | `hub/MEMORY/capabilities.json` | Tool and connector health flags. Read before assuming a capability works. |
 | `hub/MEMORY/LANDMARKS.md` | Compact top-of-mind pointer map. No long run narratives. |
-| `hub/MEMORY/agent-action-log.md` | Chronological account of substantive work. |
+| `hub/MEMORY/LESSONS.md` | Compact reusable behavior rules with hit counts. Read on every admin run; the per-run improvement ratchet. |
+| `hub/MEMORY/indexes/memory-health.json` | Budget compliance snapshot for compact memory surfaces, plus an append-only history trend. |
+| `hub/MEMORY/agent-action-log.md` | Chronological account of substantive work. Rotated into `archive/` when over budget. |
 | `hub/MEMORY/people-bios.md` | Durable person context: responsibilities, preferences, constraints, active work. |
 | `hub/MEMORY/work-item-bios.md` | Durable work-stream context: scope, status, blockers, next actions. |
 | `hub/MEMORY/comms.md` | Important communication context and decisions. |
@@ -59,6 +61,8 @@ The live `lia-live` automation set maps to these portable modules:
 | `sync_clean_repos.py` | Workspace Sync Report | Generic helper included. |
 | `memory_index_refresh.py` | Work-Item Memory Index | Generic helper included. |
 | `state_digest.py` | Current-State Digest | Generic helper included. |
+| Memory budget enforcement | Memory Health Snapshot (`memory_health.py`) | Generic helper included. |
+| Action log rotation | Memory Compaction (`memory_compact.py`) | Generic helper included. |
 | `work_package_gate.py` | Work Package Gate | Generic helper included. |
 | Automation TOML/prompt installs | Automation Manifest Installer | Generic helper included. |
 | Easy-mode issue drafting | Task Draft Helper | Generic helper included. |

@@ -24,9 +24,15 @@ Create compact current-state files first:
 - `hub/MEMORY/state-digest.md`
 - `hub/MEMORY/capabilities.json`
 - `hub/MEMORY/LANDMARKS.md`
+- `hub/MEMORY/LESSONS.md`
 
 Move long narratives into `hub/MEMORY/agent-action-log.md` or dated reports.
 Use `LANDMARKS.md` only for short pointers that should affect current behavior.
+Use `LESSONS.md` for short reusable behavior rules with hit counts. Check the
+compact files against budgets with
+`python3 hub/scripts/memory_health.py --root . --write` and rotate an
+over-budget action log with `python3 hub/scripts/memory_compact.py --root .`
+(dry-run; add `--execute` after reviewing the plan).
 
 ## 3. Convert Work Packages
 

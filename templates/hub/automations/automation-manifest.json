@@ -43,8 +43,8 @@
       "cadence": "scheduled background review",
       "connectors": ["tasks"],
       "prompt_file": "prompts/system-review-loop.md",
-      "writes": ["hub/MEMORY/self-optimization/", "hub/MEMORY/agent-action-log.md"],
-      "closeout": "Report what changed, what was learned, and what needs an operator decision."
+      "writes": ["hub/MEMORY/self-optimization/", "hub/MEMORY/agent-action-log.md", "hub/MEMORY/LESSONS.md", "hub/MEMORY/LANDMARKS.md", "hub/MEMORY/archive/"],
+      "closeout": "Pass the memory-health strict gate, then report what was promoted, pruned, and rotated, what was learned, and what needs an operator decision."
     },
     {
       "id": "operations-checklist-scan",

@@ -109,23 +109,28 @@ Rules:
 
 ## System Review Loop
 
-Purpose: Periodically inspect the workspace for stale blockers, missing memory,
+Purpose: Periodically consolidate lessons into durable behavior, enforce
+memory budgets, and inspect the workspace for stale blockers, missing memory,
 incomplete packages, repo hygiene issues, and opportunities to reduce future
 rework.
 
 Inputs:
 
 - state digest
-- memory indexes
+- memory indexes, including `memory-health.json` and the health history
+- `hub/MEMORY/LESSONS.md` hit counts
+- recent `hub/MEMORY/self-optimization/` reviews
 - automation catalog
 - recent sync reports
 - work-item blockers
 
 Outputs:
 
-- self-review report
+- promoted lessons (into `LANDMARKS.md` contracts or prompt/script fixes) and
+  pruned stale lessons
+- action-log rotation via `memory_compact.py` when over budget
+- self-review report with the health trend versus the prior review
 - package-risk or blocker queue
-- focused memory updates
 - concise admin summary with decisions needed
 
 Rules:
@@ -134,6 +139,7 @@ Rules:
   necessary.
 - Archive inactive report systems instead of creating new root-level clutter.
 - Add only current behavior pointers to `LANDMARKS.md`.
+- Close only after `memory_health.py --write --strict` passes.
 
 ## Operations Checklist Scan
 
@@ -201,3 +207,29 @@ Rules:
 - Preserve original files.
 - Keep private packet contents out of git.
 - Surface unresolved matches and amount/date mismatches.
+
+## Chat File Intake
+
+Purpose: Move authorized chat file uploads into the canonical work item with
+preserved bytes and recorded metadata.
+
+Inputs:
+
+- trigger message and thread context from `{{INTAKE_CHANNEL}}`
+- fetched file bytes under ignored `local-private/` storage
+- target work-item id and metadata answers from the requester
+
+Outputs:
+
+- preserved source file under `work-items/<id>/source/chat-uploads/`
+- metadata record under `work-items/<id>/metadata/`
+- task draft when the package remains incomplete
+
+Rules:
+
+- Fetch with `chat_file_fetch.py` into `local-private/` before any canonical
+  intake.
+- Preserve original bytes; never re-encode or rename away provenance.
+- Require metadata for every source-bearing file before analysis.
+- Create a task draft instead of running partial analysis on an incomplete
+  package.

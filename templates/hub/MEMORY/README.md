@@ -7,7 +7,10 @@ Use compact files for startup and deeper logs for search:
 - `state-digest.md` - current-state working set.
 - `capabilities.json` - connector and tool health flags.
 - `LANDMARKS.md` - compact current-behavior pointers.
+- `LESSONS.md` - compact reusable behavior rules with hit counts; the
+  per-run improvement ratchet.
 - `agent-action-log.md` - chronological account of substantive work.
+- `indexes/` - generated work-item, blocker, and memory-health indexes.
 - `people-bios.md` - durable person context.
 - `work-item-bios.md` - durable work-stream context.
 - `comms.md` - important communication context and decisions.

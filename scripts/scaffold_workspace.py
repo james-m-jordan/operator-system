@@ -158,6 +158,8 @@ Generated helper scripts:
 - `sync_workspace.py` - fetches nested git repos and writes a sync report.
 - `memory_index_refresh.py` - indexes `work-items/` and blockers.
 - `state_digest.py` - regenerates `hub/MEMORY/state-digest.md`.
+- `memory_health.py` - measures compact memory surfaces against `memory_budgets`.
+- `memory_compact.py` - rotates old action-log entries into `hub/MEMORY/archive/` (dry-run by default).
 - `package_gate.py` - checks whether one work item has source, metadata, and context.
 - `install_automations.py` - installs automation prompt/spec bundles from `hub/automations/automation-manifest.json`.
 - `task_draft.py` - writes no-terminal collaborator task drafts under `hub/MEMORY/task-drafts/`.
@@ -177,6 +179,7 @@ python3 hub/scripts/preflight_capabilities.py --root .
 python3 hub/scripts/sync_workspace.py --root .
 python3 hub/scripts/memory_index_refresh.py --root . --write --validate
 python3 hub/scripts/state_digest.py --root .
+python3 hub/scripts/memory_health.py --root . --write
 ```
 
 Install automation prompt/spec bundles:

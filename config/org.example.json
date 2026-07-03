@@ -25,6 +25,13 @@
   "sync_skip": [
     "local-private"
   ],
+  "memory_budgets": {
+    "landmarks_max_lines": 120,
+    "state_digest_max_lines": 200,
+    "lessons_max_lines": 80,
+    "action_log_max_entries": 100,
+    "top_of_mind_max_age_days": 45
+  },
   "file_sources": {
     "chat": {
       "default_provider": "direct-url",
@@ -125,7 +132,8 @@
     "system-review-loop",
     "operations-checklist-scan",
     "workspace-backup",
-    "receipt-packet-assembly"
+    "receipt-packet-assembly",
+    "chat-file-intake"
   ],
   "roles": [
     {

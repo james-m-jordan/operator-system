@@ -44,6 +44,8 @@ REQUIRED_TEMPLATE_SCRIPTS = [
     "deliver_outbox.py",
     "export_runtime_adapters.py",
     "install_automations.py",
+    "memory_compact.py",
+    "memory_health.py",
     "memory_index_refresh.py",
     "operator_common.py",
     "package_gate.py",
@@ -110,7 +112,7 @@ def audit_static_files() -> list[dict[str, Any]]:
 def audit_config() -> list[dict[str, Any]]:
     results = []
     config = load_json(CONFIG_PATH)
-    for key in ["org_name", "workspace_name", "hub_root", "work_item_root", "knowledge_base_root"]:
+    for key in ["org_name", "workspace_name", "hub_root", "work_item_root", "knowledge_base_root", "memory_budgets"]:
         results.append(check(key in config, f"config key: {key}", "config/org.example.json"))
     runtime = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
     results.append(check(bool(runtime.get("publisher_targets")), "runtime publisher targets configured", "runtime.publisher_targets"))
@@ -153,10 +155,13 @@ def audit_generated_workspace() -> list[dict[str, Any]]:
         required_generated = [
             "AGENTS.md",
             "hub/MEMORY/LANDMARKS.md",
+            "hub/MEMORY/LESSONS.md",
             "hub/MEMORY/state-digest.md",
             "hub/MEMORY/capabilities.json",
             "hub/automations/automation-manifest.json",
             "hub/scripts/preflight_capabilities.py",
+            "hub/scripts/memory_health.py",
+            "hub/scripts/memory_compact.py",
             "hub/scripts/chat_file_fetch.py",
             "hub/scripts/deliver_outbox.py",
             "work-items/README.md",

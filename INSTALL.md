@@ -32,6 +32,7 @@ python3 hub/scripts/preflight_capabilities.py --root .
 python3 hub/scripts/sync_workspace.py --root .
 python3 hub/scripts/memory_index_refresh.py --root . --write --validate
 python3 hub/scripts/state_digest.py --root .
+python3 hub/scripts/memory_health.py --root . --write
 ```
 
 ## 3. Install Automation Specs

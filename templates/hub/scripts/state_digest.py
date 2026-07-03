@@ -112,11 +112,31 @@ def main() -> int:
     else:
         lines.append("- No sync report found. Run `python3 hub/scripts/sync_workspace.py --root <workspace>`.")
     lines.append("")
+    lines.append("## Memory Health")
+    lines.append("")
+    health = load_json(index_dir / "memory-health.json", {})
+    if health:
+        status = "ok" if health.get("ok") else "OVER BUDGET"
+        lines.append(f"- Snapshot: {health.get('generated_utc', 'unknown')} - {status}")
+        violations = health.get("violations") or []
+        if violations:
+            lines.append(f"- Violations: {', '.join(violations)}")
+        metrics = ", ".join(
+            f"{check.get('name')}={check.get('value')}/{check.get('budget')}"
+            for check in health.get("checks", [])
+        )
+        if metrics:
+            lines.append(f"- Budgets: {metrics}")
+    else:
+        lines.append("- No memory-health snapshot yet. Run `python3 hub/scripts/memory_health.py --root . --write`.")
+    lines.append("")
     lines.append("## Pointers")
     lines.append("")
     lines.append("- Top-of-mind pointers: `hub/MEMORY/LANDMARKS.md`")
+    lines.append("- Reusable lessons: `hub/MEMORY/LESSONS.md`")
     lines.append("- Work item index: `hub/MEMORY/indexes/work-item-index.json`")
     lines.append("- Blocker index: `hub/MEMORY/indexes/blocker-index.json`")
+    lines.append("- Memory health trend: `hub/MEMORY/indexes/memory-health-history.jsonl`")
     lines.append("- Run history: `hub/MEMORY/agent-action-log.md`")
     lines.append("")
 

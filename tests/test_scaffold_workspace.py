@@ -93,11 +93,14 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
 
             self.assertTrue((destination / "AGENTS.md").exists())
             self.assertTrue((destination / "hub" / "MEMORY" / "LANDMARKS.md").exists())
+            self.assertTrue((destination / "hub" / "MEMORY" / "LESSONS.md").exists())
             self.assertTrue((destination / "hub" / "automations.md").exists())
             self.assertTrue((destination / "hub" / "scripts" / "preflight_capabilities.py").exists())
             self.assertTrue((destination / "hub" / "scripts" / "sync_workspace.py").exists())
             self.assertTrue((destination / "hub" / "scripts" / "memory_index_refresh.py").exists())
             self.assertTrue((destination / "hub" / "scripts" / "state_digest.py").exists())
+            self.assertTrue((destination / "hub" / "scripts" / "memory_health.py").exists())
+            self.assertTrue((destination / "hub" / "scripts" / "memory_compact.py").exists())
             self.assertTrue((destination / "hub" / "scripts" / "package_gate.py").exists())
             self.assertTrue((destination / "hub" / "scripts" / "install_automations.py").exists())
             self.assertTrue((destination / "hub" / "scripts" / "task_draft.py").exists())
@@ -147,6 +150,8 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
                 [sys.executable, "hub/scripts/sync_workspace.py", "--root", "."],
                 [sys.executable, "hub/scripts/memory_index_refresh.py", "--root", ".", "--write", "--validate"],
                 [sys.executable, "hub/scripts/state_digest.py", "--root", "."],
+                [sys.executable, "hub/scripts/memory_health.py", "--root", ".", "--write"],
+                [sys.executable, "hub/scripts/memory_compact.py", "--root", "."],
                 [sys.executable, "hub/scripts/package_gate.py", "--root", ".", "--work-item", "work-items/case001"],
                 [sys.executable, "hub/scripts/install_automations.py", "--root", ".", "--out", ".operator-automations"],
                 [sys.executable, "hub/scripts/task_draft.py", "--root", ".", "--work-item", "work-items/case001", "--assignee", "Alex"],
@@ -168,6 +173,11 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             self.assertEqual(index[0]["package_status"], "ready_for_work")
             digest = (destination / "hub" / "MEMORY" / "state-digest.md").read_text(encoding="utf-8")
             self.assertIn("Case 001", digest)
+            self.assertIn("Memory Health", digest)
+            health = json.loads((destination / "hub" / "MEMORY" / "indexes" / "memory-health.json").read_text(encoding="utf-8"))
+            self.assertTrue(health["ok"], msg=health)
+            history = (destination / "hub" / "MEMORY" / "indexes" / "memory-health-history.jsonl").read_text(encoding="utf-8")
+            self.assertGreaterEqual(len(history.strip().splitlines()), 1)
             self.assertTrue((destination / ".operator-automations" / "morning-control-panel" / "automation.json").exists())
             self.assertTrue((destination / "hub" / "MEMORY" / "task-drafts").is_dir())
             self.assertTrue((destination / "hub" / "MEMORY" / "backups").is_dir())
@@ -220,6 +230,51 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             payload = json.loads(metadata.read_text(encoding="utf-8"))
             self.assertEqual(payload[0]["source_url"], "https://chat.example/files/1")
             self.assertEqual(payload[0]["extra"]["requester"], "Alex")
+
+    def test_memory_compact_rotates_old_entries(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            self.module.scaffold(self.config, destination)
+
+            log_path = destination / "hub" / "MEMORY" / "agent-action-log.md"
+            entries = [f"- 2024-01-{day:02d} - agent - scope - action {day} - paths - next" for day in range(1, 11)]
+            entries.insert(3, "- undated note that should never be archived")
+            log_path.write_text(
+                "# Agent Action Log\n\nFormat notes.\n\n## Log\n\n" + "\n".join(entries) + "\n",
+                encoding="utf-8",
+            )
+
+            dry_run = subprocess.run(
+                [sys.executable, "hub/scripts/memory_compact.py", "--root", ".", "--keep", "4"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(dry_run.returncode, 0, msg=dry_run.stderr)
+            self.assertIn("Dry run", dry_run.stdout)
+            self.assertIn("## Log", log_path.read_text(encoding="utf-8"))
+            self.assertIn("action 1", log_path.read_text(encoding="utf-8"))
+
+            result = subprocess.run(
+                [sys.executable, "hub/scripts/memory_compact.py", "--root", ".", "--keep", "4", "--execute"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            rotated = log_path.read_text(encoding="utf-8")
+            self.assertIn("undated note that should never be archived", rotated)
+            self.assertIn("action 10", rotated)
+            self.assertIn("action 7", rotated)
+            self.assertNotIn("action 1 ", rotated)
+            archive = destination / "hub" / "MEMORY" / "archive" / "action-log-2024.md"
+            archived = archive.read_text(encoding="utf-8")
+            self.assertIn("action 1", archived)
+            self.assertIn("action 6", archived)
+            self.assertNotIn("action 7", archived)
+            self.assertNotIn("undated note", archived)
 
     def test_package_gate_blocks_incomplete_work_item(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,14 @@ DEFAULT_CONFIG = {
     "work_item_root": "work-items",
     "knowledge_base_root": "knowledge-base",
     "required_capabilities": ["git", "python"],
+}
+
+DEFAULT_MEMORY_BUDGETS = {
+    "landmarks_max_lines": 120,
+    "state_digest_max_lines": 200,
+    "lessons_max_lines": 80,
+    "action_log_max_entries": 100,
+    "top_of_mind_max_age_days": 45,
 }
 
 
@@ -64,3 +73,43 @@ def write_json(path: Path, data: Any) -> None:
 def write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+
+
+def load_memory_budgets(config: dict[str, Any]) -> dict[str, int]:
+    budgets = dict(DEFAULT_MEMORY_BUDGETS)
+    loaded = config.get("memory_budgets")
+    if isinstance(loaded, dict):
+        for key, value in loaded.items():
+            if isinstance(value, int) and value > 0:
+                budgets[key] = value
+    return budgets
+
+
+def split_action_log(text: str) -> tuple[list[str], list[list[str]]]:
+    """Split an action log into (preamble lines, entries).
+
+    An entry starts with a `- ` bullet after the `## Log` heading; following
+    non-bullet lines attach to the preceding entry.
+    """
+    preamble: list[str] = []
+    entries: list[list[str]] = []
+    in_log = False
+    for line in text.splitlines():
+        if not in_log:
+            preamble.append(line)
+            if line.strip() == "## Log":
+                in_log = True
+            continue
+        if line.startswith("- "):
+            entries.append([line])
+        elif entries:
+            entries[-1].append(line)
+        else:
+            preamble.append(line)
+    return preamble, entries
+
+
+def action_log_entry_date(entry: list[str]) -> str:
+    """Return the leading YYYY-MM-DD date of an entry, or empty string."""
+    match = re.match(r"-\s*(\d{4}-\d{2}-\d{2})", entry[0])
+    return match.group(1) if match else ""

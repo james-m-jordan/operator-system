@@ -1,7 +1,7 @@
 # Operator System Completion Matrix
 
 - Audit result: **PASS**
-- Checks passed: 78
+- Checks passed: 84
 - Checks failed: 0
 
 ## Matrix
@@ -31,6 +31,8 @@
 | generated helper script: deliver_outbox.py | PASS | `templates/hub/scripts/deliver_outbox.py` |
 | generated helper script: export_runtime_adapters.py | PASS | `templates/hub/scripts/export_runtime_adapters.py` |
 | generated helper script: install_automations.py | PASS | `templates/hub/scripts/install_automations.py` |
+| generated helper script: memory_compact.py | PASS | `templates/hub/scripts/memory_compact.py` |
+| generated helper script: memory_health.py | PASS | `templates/hub/scripts/memory_health.py` |
 | generated helper script: memory_index_refresh.py | PASS | `templates/hub/scripts/memory_index_refresh.py` |
 | generated helper script: operator_common.py | PASS | `templates/hub/scripts/operator_common.py` |
 | generated helper script: package_gate.py | PASS | `templates/hub/scripts/package_gate.py` |
@@ -45,6 +47,7 @@
 | config key: hub_root | PASS | `config/org.example.json` |
 | config key: work_item_root | PASS | `config/org.example.json` |
 | config key: knowledge_base_root | PASS | `config/org.example.json` |
+| config key: memory_budgets | PASS | `config/org.example.json` |
 | runtime publisher targets configured | PASS | `runtime.publisher_targets` |
 | backup transfer configured | PASS | `backup.transfer` |
 | chat file providers configured | PASS | `file_sources.chat.providers` |
@@ -69,10 +72,13 @@
 | scaffold command succeeds | PASS | `scaffolded temporary workspace` |
 | generated path: AGENTS.md | PASS | `AGENTS.md` |
 | generated path: hub/MEMORY/LANDMARKS.md | PASS | `hub/MEMORY/LANDMARKS.md` |
+| generated path: hub/MEMORY/LESSONS.md | PASS | `hub/MEMORY/LESSONS.md` |
 | generated path: hub/MEMORY/state-digest.md | PASS | `hub/MEMORY/state-digest.md` |
 | generated path: hub/MEMORY/capabilities.json | PASS | `hub/MEMORY/capabilities.json` |
 | generated path: hub/automations/automation-manifest.json | PASS | `hub/automations/automation-manifest.json` |
 | generated path: hub/scripts/preflight_capabilities.py | PASS | `hub/scripts/preflight_capabilities.py` |
+| generated path: hub/scripts/memory_health.py | PASS | `hub/scripts/memory_health.py` |
+| generated path: hub/scripts/memory_compact.py | PASS | `hub/scripts/memory_compact.py` |
 | generated path: hub/scripts/chat_file_fetch.py | PASS | `hub/scripts/chat_file_fetch.py` |
 | generated path: hub/scripts/deliver_outbox.py | PASS | `hub/scripts/deliver_outbox.py` |
 | generated path: work-items/README.md | PASS | `work-items/README.md` |
@@ -81,7 +87,7 @@
 | release archive builds | PASS | `operator-system-starter-audit.tar.gz` |
 | release manifest exists | PASS | `operator-system-starter-audit.manifest.json` |
 | release archive exists | PASS | `operator-system-starter-audit.tar.gz` |
-| release manifest has expected breadth | PASS | `file_count=48` |
+| release manifest has expected breadth | PASS | `file_count=51` |
 | release includes chat fetch helper | PASS | `manifest files` |
 | release includes audit helper | PASS | `manifest files` |
 | release includes license | PASS | `manifest files` |

@@ -63,6 +63,7 @@ python3 hub/scripts/preflight_capabilities.py --root .
 python3 hub/scripts/sync_workspace.py --root .
 python3 hub/scripts/memory_index_refresh.py --root . --write --validate
 python3 hub/scripts/state_digest.py --root .
+python3 hub/scripts/memory_health.py --root . --write
 python3 hub/scripts/install_automations.py --root . --out .operator-automations
 python3 hub/scripts/export_runtime_adapters.py --root .
 python3 hub/scripts/run_automation.py --root . --automation-id morning-control-panel

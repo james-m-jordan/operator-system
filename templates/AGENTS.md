@@ -24,15 +24,17 @@ For every admin or cross-work-item run:
 2. Read `hub/MEMORY/state-digest.md`.
 3. Read `hub/MEMORY/capabilities.json`.
 4. Read all of `hub/MEMORY/LANDMARKS.md`.
-5. Read `hub/admin-docs/team.md`, `hub/admin-docs/permissions.md`, and
+5. Read all of `hub/MEMORY/LESSONS.md` and apply the active lessons.
+6. Read `hub/admin-docs/team.md`, `hub/admin-docs/permissions.md`, and
    `hub/admin-docs/repos.md`.
-6. Run the configured helper refresh before writing tracked files:
+7. Run the configured helper refresh before writing tracked files:
 
 ```bash
 python3 hub/scripts/preflight_capabilities.py --root .
 python3 hub/scripts/sync_workspace.py --root .
 python3 hub/scripts/memory_index_refresh.py --root . --write --validate
 python3 hub/scripts/state_digest.py --root .
+python3 hub/scripts/memory_health.py --root . --write
 ```
 
 When automation specs need to be materialized for a runtime, install them from
@@ -123,9 +125,19 @@ Substantive runs must update durable memory before closeout:
 
 - Full account: `hub/MEMORY/agent-action-log.md`.
 - Current behavior pointers only: `hub/MEMORY/LANDMARKS.md`.
+- Reusable behavior rules: `hub/MEMORY/LESSONS.md`.
 - People context: `hub/MEMORY/people-bios.md`.
 - Work-stream context: `hub/MEMORY/work-item-bios.md`.
 - Communication decisions: `hub/MEMORY/comms.md`.
+
+Improvement ratchet: every substantive run leaves the system at least one
+notch better before closeout — add one lesson to `hub/MEMORY/LESSONS.md`
+(or increment a re-confirmed lesson's hit count), correct one wrong memory
+entry, or prune one stale entry. Then run
+`python3 hub/scripts/memory_health.py --root . --write` and fix any budget
+violation you introduced. Rotate an over-budget action log with
+`python3 hub/scripts/memory_compact.py --root .` (add `--execute` after
+reviewing the plan).
 
 Keep generated state in `state-digest.md` and tool health in
 `capabilities.json`; refresh them with the configured scripts instead of
