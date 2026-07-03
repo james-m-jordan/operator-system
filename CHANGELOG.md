@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.0 - 2026-07-02
+
+- New `ops.py` single entry point (`startup`, `doctor`, `run`, `close`,
+  `search`, `review`, `compact`, `sweep`, `wiki`).
+- New `retention_sweep.py` retires old runtime artifacts (automation runs,
+  delivery receipts, sync reports, morning briefs, digests, backups) into
+  `archive/retired/` — dry-run first, config-driven window.
+- New `config_check.py` validates org.json (types, cron fields, delivery and
+  provider types, budgets) before other scripts trip on mistakes.
+- Cross-process locks around LESSONS.md writes, action-log rotation, and
+  retention sweeps.
+- `package_gate.py --draft-task` auto-drafts the follow-up task when a
+  package is BLOCKED.
+- `upgrade_workspace.py --check` exits nonzero when kit updates are
+  available and writes a marker the state digest surfaces.
+- Overdue scheduled automations now appear as advisory memory-health notes.
+- `scripts/demo_walkthrough.py` drives the full loop end to end in a
+  throwaway workspace; tag-push `release.yml` publishes the versioned
+  tarball and checksum manifest as a GitHub Release.
+
 ## 0.3.0 - 2026-07-02
 
 - Standard Ratchet embedded in all automation prompts and installed bundles,

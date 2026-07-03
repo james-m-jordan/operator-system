@@ -16,6 +16,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from operator_common import (
     SYNC_RISK_LABELS,
+    heartbeat_status,
     latest_sync_report,
     load_config,
     memory_dir,
@@ -51,56 +52,22 @@ def health_trend(history_path: Path) -> str:
     return ", ".join(deltas) if deltas else "no change"
 
 
-def cron_max_gap_hours(cron: str) -> int:
-    """Coarse expected max gap between runs for a cron expression."""
-    fields = cron.split()
-    if len(fields) != 5:
-        return 26
-    _, hour, day_of_month, _, day_of_week = fields
-    if day_of_month != "*":
-        return 32 * 24
-    if day_of_week != "*":
-        return 8 * 24
-    if hour != "*":
-        return 26
-    return 3
-
-
 def automation_heartbeat(root: Path, config: dict[str, object]) -> list[str]:
     """Report last-run recency per enabled automation schedule."""
-    schedules = config.get("automation_schedules", {})
-    if not isinstance(schedules, dict) or not schedules:
-        return ["- No automation schedules configured."]
-    runtime = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
-    run_root = root / str(runtime.get("run_root", "hub/MEMORY/automation-runs"))
-    last_run: dict[str, str] = {}
-    if run_root.exists():
-        for child in sorted(run_root.iterdir()):
-            meta = load_json(child / "run.json", {})
-            automation_id = str(meta.get("automation_id", ""))
-            created = str(meta.get("created_utc", ""))
-            if automation_id and created > last_run.get(automation_id, ""):
-                last_run[automation_id] = created
-    now = datetime.now(timezone.utc)
+    statuses = heartbeat_status(root, config)
     lines = []
-    for automation_id, schedule in sorted(schedules.items()):
-        if not isinstance(schedule, dict) or not schedule.get("enabled"):
-            continue
-        max_gap = schedule.get("max_gap_hours") or cron_max_gap_hours(str(schedule.get("cron", "")))
-        last = last_run.get(automation_id)
-        if not last:
-            lines.append(f"- `{automation_id}`: no runs recorded yet (expected every ~{max_gap}h).")
-            continue
-        try:
-            last_dt = datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-            age_hours = (now - last_dt).total_seconds() / 3600
-        except ValueError:
-            lines.append(f"- `{automation_id}`: last run timestamp unreadable ({last}).")
-            continue
-        if age_hours > max_gap:
-            lines.append(f"- `{automation_id}`: OVERDUE - last run {last}, {age_hours:.0f}h ago (expected every ~{max_gap}h).")
+    for item in statuses:
+        if item["status"] == "never-run":
+            lines.append(f"- `{item['id']}`: no runs recorded yet (expected every ~{item['max_gap_hours']}h).")
+        elif item["status"] == "overdue":
+            lines.append(
+                f"- `{item['id']}`: OVERDUE - last run {item['last_run']}, {item['age_hours']:.0f}h ago "
+                f"(expected every ~{item['max_gap_hours']}h)."
+            )
+        elif item["status"] == "unreadable":
+            lines.append(f"- `{item['id']}`: last run timestamp unreadable ({item['last_run']}).")
         else:
-            lines.append(f"- `{automation_id}`: ok - last run {last}.")
+            lines.append(f"- `{item['id']}`: ok - last run {item['last_run']}.")
     return lines or ["- No enabled automation schedules."]
 
 
@@ -184,6 +151,14 @@ def main() -> int:
     trend = health_trend(index_dir / "memory-health-history.jsonl")
     if trend:
         lines.append(f"- Trend vs previous snapshot: {trend}")
+    kit_update = load_json(index_dir / "kit-update.json", {})
+    if kit_update.get("adds") or kit_update.get("updates"):
+        lines.append(
+            f"- Kit update available: {kit_update.get('kit_version_current', '?')} -> "
+            f"{kit_update.get('kit_version_available', '?')} "
+            f"({kit_update.get('adds', 0)} adds, {kit_update.get('updates', 0)} updates; "
+            "run scripts/upgrade_workspace.py from the kit)"
+        )
     lines.append("")
     lines.append("## Automation Heartbeat")
     lines.append("")

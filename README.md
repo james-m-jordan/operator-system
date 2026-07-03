@@ -122,6 +122,12 @@ every turn" is actually happening.
 
 ## Quick Start
 
+See the whole loop working in under a minute:
+
+```bash
+python3 scripts/demo_walkthrough.py
+```
+
 Preview the generated workspace in a throwaway path:
 
 ```bash
@@ -139,10 +145,19 @@ python3 scripts/audit_release.py --json
 python3 scripts/package_release.py --out /tmp/operator-system-release
 ```
 
-After scaffolding, the generated workspace can refresh its own startup state:
+After scaffolding, the generated workspace can refresh its own startup state
+with one command:
 
 ```bash
 cd /tmp/operator-system-demo
+python3 hub/scripts/ops.py startup
+```
+
+or with the individual helpers:
+
+```bash
+cd /tmp/operator-system-demo
+python3 hub/scripts/config_check.py --root .
 python3 hub/scripts/preflight_capabilities.py --root .
 python3 hub/scripts/sync_workspace.py --root .
 python3 hub/scripts/memory_index_refresh.py --root . --write --validate

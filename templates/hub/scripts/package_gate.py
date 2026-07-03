@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -88,6 +89,7 @@ def main() -> int:
     parser.add_argument("--root", default="", help="Workspace root.")
     parser.add_argument("--work-item", required=True, help="Work-item path to check.")
     parser.add_argument("--json", action="store_true", help="Print JSON instead of Markdown.")
+    parser.add_argument("--draft-task", action="store_true", help="When BLOCKED, write a follow-up task draft via task_draft.py.")
     args = parser.parse_args()
 
     root = resolve_root(args.root)
@@ -99,6 +101,17 @@ def main() -> int:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
         print(render_markdown(root, result), end="")
+    if not result["ok"] and args.draft_task:
+        draft = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "task_draft.py"), "--root", str(root), "--work-item", args.work_item],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if draft.returncode == 0:
+            print(f"Task draft created: {draft.stdout.strip()}")
+        else:
+            print(f"task_draft.py failed ({draft.returncode}): {draft.stderr.strip()[:300]}")
     return 0 if result["ok"] else 1
 
 

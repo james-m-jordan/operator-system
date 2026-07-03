@@ -154,6 +154,8 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             remote_upload.write_text("remote evidence", encoding="utf-8")
 
             commands = [
+                [sys.executable, "hub/scripts/config_check.py", "--root", "."],
+                [sys.executable, "hub/scripts/retention_sweep.py", "--root", "."],
                 [sys.executable, "hub/scripts/preflight_capabilities.py", "--root", "."],
                 [sys.executable, "hub/scripts/sync_workspace.py", "--root", "."],
                 [sys.executable, "hub/scripts/memory_index_refresh.py", "--root", ".", "--write", "--validate"],
@@ -309,6 +311,153 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             self.assertIn("action 6", archived)
             self.assertNotIn("action 7", archived)
             self.assertNotIn("undated note", archived)
+
+    def test_ops_startup_runs_chain(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            self.module.scaffold(self.config, destination)
+            result = subprocess.run(
+                [sys.executable, "hub/scripts/ops.py", "startup"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue((destination / "hub" / "MEMORY" / "indexes" / "memory-health.json").exists())
+            self.assertTrue((destination / "hub" / "MEMORY" / "state-digest.md").exists())
+
+    def test_config_check_flags_bad_config(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            self.module.scaffold(self.config, destination)
+            config_path = destination / "hub" / "config" / "org.json"
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            config["automation_schedules"]["morning-control-panel"]["cron"] = "not a cron"
+            config["memory_budgets"] = {"landmarks_max_lines": -3}
+            config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, "hub/scripts/config_check.py", "--root", ".", "--json"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertTrue(any("cron" in error for error in payload["errors"]))
+            self.assertTrue(any("landmarks_max_lines" in error for error in payload["errors"]))
+
+    def test_retention_sweep_archives_old_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            self.module.scaffold(self.config, destination)
+            runs = destination / "hub" / "MEMORY" / "automation-runs"
+            old_run = runs / "20200101T000000Z-morning-control-panel"
+            old_run.mkdir(parents=True)
+            (old_run / "run.json").write_text("{}", encoding="utf-8")
+            fresh_run = runs / "20990101T000000Z-morning-control-panel"
+            fresh_run.mkdir(parents=True)
+            (fresh_run / "run.json").write_text("{}", encoding="utf-8")
+
+            dry = subprocess.run(
+                [sys.executable, "hub/scripts/retention_sweep.py", "--root", "."],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(dry.returncode, 0, msg=dry.stderr)
+            self.assertIn("Dry run", dry.stdout)
+            self.assertTrue(old_run.exists())
+
+            result = subprocess.run(
+                [sys.executable, "hub/scripts/retention_sweep.py", "--root", ".", "--execute"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            self.assertFalse(old_run.exists())
+            self.assertTrue(fresh_run.exists())
+            retired = destination / "hub" / "MEMORY" / "archive" / "retired" / "automation-runs" / old_run.name
+            self.assertTrue(retired.exists())
+
+    def test_memory_health_strict_fails_over_budget(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            self.module.scaffold(self.config, destination)
+            config_path = destination / "hub" / "config" / "org.json"
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            config["memory_budgets"] = {"lessons_max_lines": 1}
+            config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, "hub/scripts/memory_health.py", "--root", ".", "--strict"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("lessons_lines", result.stdout)
+
+    def test_state_digest_marks_overdue_automation(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            self.module.scaffold(self.config, destination)
+            run_dir = destination / "hub" / "MEMORY" / "automation-runs" / "20200101T000000Z-morning-control-panel"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(
+                json.dumps({"automation_id": "morning-control-panel", "created_utc": "2020-01-01T00:00:00Z"}),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [sys.executable, "hub/scripts/state_digest.py", "--root", "."],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            digest = (destination / "hub" / "MEMORY" / "state-digest.md").read_text(encoding="utf-8")
+            self.assertIn("OVERDUE", digest)
+
+    def test_deliver_outbox_command_timeout(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            self.module.scaffold(self.config, destination)
+            config_path = destination / "hub" / "config" / "org.json"
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            config["runtime"]["publisher_targets"]["status"]["delivery"] = {
+                "type": "command",
+                "command": [sys.executable, "-c", "import time; time.sleep(10)"],
+                "timeout_seconds": 1,
+            }
+            config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+            publish = subprocess.run(
+                [sys.executable, "hub/scripts/publish_status.py", "--root", ".", "--publisher", "status", "--message", "Timeout test"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(publish.returncode, 0, msg=publish.stderr)
+            result = subprocess.run(
+                [sys.executable, "hub/scripts/deliver_outbox.py", "--root", ".", "--publisher", "status", "--latest", "--execute"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 124)
+            receipt = next((destination / "hub" / "MEMORY" / "outbox-deliveries" / "status").glob("*.json"))
+            payload = json.loads(receipt.read_text(encoding="utf-8"))
+            self.assertIn("timed out", payload["detail"])
 
     def test_lesson_add_deduplicates_and_prunes(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -469,6 +618,17 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             self.assertIn("conflict: AGENTS.md", dry_run.stdout)
             self.assertFalse((destination / "hub" / "scripts" / "new_helper.py").exists())
 
+            check = subprocess.run(
+                [sys.executable, str(UPGRADE_SCRIPT_PATH), "--workspace", str(destination), "--kit-root", str(kit), "--check"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(check.returncode, 1, msg=check.stdout)
+            marker = json.loads((destination / "hub" / "MEMORY" / "indexes" / "kit-update.json").read_text(encoding="utf-8"))
+            self.assertGreaterEqual(marker["adds"], 1)
+            self.assertGreaterEqual(marker["updates"], 1)
+
             result = subprocess.run(
                 [sys.executable, str(UPGRADE_SCRIPT_PATH), "--workspace", str(destination), "--kit-root", str(kit), "--execute"],
                 capture_output=True,
@@ -483,6 +643,7 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             self.assertNotIn("Kit note.", upgraded_agents)
             manifest = json.loads((destination / "hub" / "config" / "template-manifest.json").read_text(encoding="utf-8"))
             self.assertIn("hub/scripts/new_helper.py", manifest["files"])
+            self.assertFalse((destination / "hub" / "MEMORY" / "indexes" / "kit-update.json").exists())
 
     def test_package_gate_blocks_incomplete_work_item(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -504,6 +665,17 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             self.assertFalse(payload["ok"])
             self.assertIn("source_files_present", payload["missing"])
             self.assertIn("metadata_present", payload["missing"])
+
+            drafted = subprocess.run(
+                [sys.executable, "hub/scripts/package_gate.py", "--root", ".", "--work-item", "work-items/case002", "--draft-task"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(drafted.returncode, 1)
+            self.assertIn("Task draft created", drafted.stdout)
+            self.assertTrue(any((destination / "hub" / "MEMORY" / "task-drafts").glob("*case002*")))
 
     def test_refuses_non_empty_destination_without_force(self):
         with tempfile.TemporaryDirectory() as tmpdir:

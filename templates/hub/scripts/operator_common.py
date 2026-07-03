@@ -4,7 +4,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import time
+from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -118,6 +122,99 @@ def action_log_entry_date(entry: list[str]) -> str:
 
 
 SYNC_RISK_LABELS = ("Diverged", "Fetch Failed", "Pull Failed", "Reapply Failed", "Hidden Stash State")
+
+LOCK_STALE_SECONDS = 600
+
+
+@contextmanager
+def workspace_lock(root: Path, config: dict[str, Any], name: str = "memory", timeout: int = 30):
+    """Cross-process lock for shared memory files. Breaks stale locks."""
+    lock_dir = memory_dir(root, config) / ".locks" / f"{name}.lock"
+    lock_dir.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            lock_dir.mkdir()
+            (lock_dir / "owner").write_text(f"{os.getpid()} {time.time()}\n", encoding="utf-8")
+            break
+        except FileExistsError:
+            try:
+                stamp = float((lock_dir / "owner").read_text(encoding="utf-8").split()[1])
+            except Exception:
+                stamp = 0.0
+            if time.time() - stamp > LOCK_STALE_SECONDS:
+                try:
+                    (lock_dir / "owner").unlink(missing_ok=True)
+                    lock_dir.rmdir()
+                except OSError:
+                    pass
+                continue
+            if time.monotonic() > deadline:
+                raise SystemExit(f"could not acquire {name} lock within {timeout}s; another run holds {lock_dir}")
+            time.sleep(0.2)
+    try:
+        yield
+    finally:
+        try:
+            (lock_dir / "owner").unlink(missing_ok=True)
+            lock_dir.rmdir()
+        except OSError:
+            pass
+
+
+def cron_max_gap_hours(cron: str) -> int:
+    """Coarse expected max gap between runs for a cron expression."""
+    fields = cron.split()
+    if len(fields) != 5:
+        return 26
+    _, hour, day_of_month, _, day_of_week = fields
+    if day_of_month != "*":
+        return 32 * 24
+    if day_of_week != "*":
+        return 8 * 24
+    if hour != "*":
+        return 26
+    return 3
+
+
+def heartbeat_status(root: Path, config: dict[str, Any]) -> list[dict[str, Any]]:
+    """Per enabled automation schedule: last run recency vs expected cadence."""
+    schedules = config.get("automation_schedules", {})
+    if not isinstance(schedules, dict):
+        return []
+    runtime = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
+    run_root = root / str(runtime.get("run_root", "hub/MEMORY/automation-runs"))
+    last_run: dict[str, str] = {}
+    if run_root.exists():
+        for child in sorted(run_root.iterdir()):
+            try:
+                meta = json.loads((child / "run.json").read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            automation_id = str(meta.get("automation_id", ""))
+            created = str(meta.get("created_utc", ""))
+            if automation_id and created > last_run.get(automation_id, ""):
+                last_run[automation_id] = created
+    now = datetime.now(timezone.utc)
+    statuses = []
+    for automation_id, schedule in sorted(schedules.items()):
+        if not isinstance(schedule, dict) or not schedule.get("enabled"):
+            continue
+        max_gap = schedule.get("max_gap_hours") or cron_max_gap_hours(str(schedule.get("cron", "")))
+        last = last_run.get(automation_id, "")
+        status = "never-run"
+        age_hours = 0.0
+        if last:
+            try:
+                last_dt = datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                age_hours = (now - last_dt).total_seconds() / 3600
+                status = "overdue" if age_hours > max_gap else "ok"
+            except ValueError:
+                status = "unreadable"
+        statuses.append(
+            {"id": automation_id, "status": status, "last_run": last, "age_hours": round(age_hours, 1), "max_gap_hours": max_gap}
+        )
+    return statuses
 
 RATCHET_BLOCK = """## Standard Ratchet
 

@@ -33,7 +33,8 @@ Generated and runtime folders:
 - `opportunities.md` - opportunity planning memo (when that automation runs).
 - `repo-syncs/` - dated sync reports.
 - `archive/` - rotated action-log years, retired report systems, and
-  inactive automation artifacts.
+  inactive automation artifacts. `archive/retired/` holds runtime artifacts
+  moved out by `hub/scripts/retention_sweep.py` after the retention window.
 
 Slower-changing synthesis lives in `hub/wiki/`, compiled by
 `hub/scripts/wiki_compile.py`.

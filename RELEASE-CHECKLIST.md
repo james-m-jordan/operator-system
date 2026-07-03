@@ -16,6 +16,9 @@ python3 scripts/audit_release.py --write COMPLETION-MATRIX.md
 rm -rf /tmp/operator-system-demo
 python3 scripts/scaffold_workspace.py --config config/org.example.json --out /tmp/operator-system-demo --force
 cd /tmp/operator-system-demo
+python3 hub/scripts/ops.py startup
+python3 hub/scripts/config_check.py --root .
+python3 hub/scripts/retention_sweep.py --root .
 python3 hub/scripts/preflight_capabilities.py --root .
 python3 hub/scripts/sync_workspace.py --root .
 python3 hub/scripts/memory_index_refresh.py --root . --write --validate

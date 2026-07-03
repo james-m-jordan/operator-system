@@ -25,9 +25,16 @@ python3 scripts/scaffold_workspace.py --config config/org.example.json --out /pa
 cd /path/to/workspace
 ```
 
-Run the startup helper chain:
+Run the startup helper chain (single command):
 
 ```bash
+python3 hub/scripts/ops.py startup
+```
+
+or step by step:
+
+```bash
+python3 hub/scripts/config_check.py --root .
 python3 hub/scripts/preflight_capabilities.py --root .
 python3 hub/scripts/sync_workspace.py --root .
 python3 hub/scripts/memory_index_refresh.py --root . --write --validate

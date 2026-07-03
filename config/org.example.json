@@ -34,6 +34,17 @@
     "unclosed_runs_max": 5,
     "runs_without_improvement_max": 5
   },
+  "retention": {
+    "days": 90,
+    "targets": [
+      "automation-runs",
+      "outbox-deliveries",
+      "repo-syncs",
+      "morning",
+      "feed-digests",
+      "backups"
+    ]
+  },
   "feeds": {
     "sources": [
       "https://example.com/announcements.rss"

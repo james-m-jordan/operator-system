@@ -30,6 +30,13 @@ For every admin or cross-work-item run:
 7. Run the configured helper refresh before writing tracked files:
 
 ```bash
+python3 hub/scripts/ops.py startup
+```
+
+which runs the config check plus the individual helpers:
+
+```bash
+python3 hub/scripts/config_check.py --root .
 python3 hub/scripts/preflight_capabilities.py --root .
 python3 hub/scripts/sync_workspace.py --root .
 python3 hub/scripts/memory_index_refresh.py --root . --write --validate
@@ -155,9 +162,11 @@ notch better before closeout. Valid improvement types (recorded by
 
 Then run `python3 hub/scripts/memory_health.py --root . --write` and fix any
 budget violation you introduced. Rotate an over-budget action log with
-`python3 hub/scripts/memory_compact.py --root .` (add `--execute` after
-reviewing the plan). Note that `sync_workspace.py` is also dry-run-first:
-plain runs fetch and report; pass `--execute` to fast-forward or stash-sync.
+`python3 hub/scripts/memory_compact.py --root .` and retire old runtime
+artifacts with `python3 hub/scripts/retention_sweep.py --root .` (both
+dry-run; add `--execute` after reviewing the plan). Note that
+`sync_workspace.py` is also dry-run-first: plain runs fetch and report; pass
+`--execute` to fast-forward or stash-sync.
 
 Keep generated state in `state-digest.md` and tool health in
 `capabilities.json`; refresh them with the configured scripts instead of

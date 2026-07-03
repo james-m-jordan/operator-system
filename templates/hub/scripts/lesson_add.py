@@ -14,7 +14,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from operator_common import load_config, load_memory_budgets, memory_dir, read_text, resolve_root, write_text
+from operator_common import load_config, load_memory_budgets, memory_dir, read_text, resolve_root, workspace_lock, write_text
 
 ENTRY_RE = re.compile(r"^-\s*(\d{4}-\d{2}-\d{2})\s*\|\s*(.+?)\s*\|\s*evidence:\s*(.+?)\s*\|\s*hits:\s*(\d+)\s*$")
 MATCH_THRESHOLD = 0.8
@@ -62,34 +62,36 @@ def render(header: list[str], entries: list[dict[str, object]]) -> str:
 def add_lesson(root: Path, config: dict[str, object], rule: str, evidence: str) -> str:
     """Add a lesson or increment a matching one. Returns a summary of what happened."""
     lessons_path = memory_dir(root, config) / "LESSONS.md"
-    text = read_text(lessons_path)
-    if not text:
-        raise SystemExit(f"missing {lessons_path}; scaffold or migrate LESSONS.md first")
-    header, entries = split_lessons(text)
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    for entry in entries:
-        if similarity(str(entry["rule"]), rule) >= MATCH_THRESHOLD:
-            entry["hits"] = int(entry["hits"]) + 1
-            entry["date"] = today
-            if evidence:
-                entry["evidence"] = evidence
-            write_text(lessons_path, render(header, entries))
-            return f"re-confirmed existing lesson (hits: {entry['hits']}): {entry['rule']}"
-    entries.append({"date": today, "rule": rule.strip(), "evidence": evidence.strip(), "hits": 1})
-    write_text(lessons_path, render(header, entries))
-    return f"added new lesson: {rule.strip()}"
+    with workspace_lock(root, config, name="lessons"):
+        text = read_text(lessons_path)
+        if not text:
+            raise SystemExit(f"missing {lessons_path}; scaffold or migrate LESSONS.md first")
+        header, entries = split_lessons(text)
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        for entry in entries:
+            if similarity(str(entry["rule"]), rule) >= MATCH_THRESHOLD:
+                entry["hits"] = int(entry["hits"]) + 1
+                entry["date"] = today
+                if evidence:
+                    entry["evidence"] = evidence
+                write_text(lessons_path, render(header, entries))
+                return f"re-confirmed existing lesson (hits: {entry['hits']}): {entry['rule']}"
+        entries.append({"date": today, "rule": rule.strip(), "evidence": evidence.strip(), "hits": 1})
+        write_text(lessons_path, render(header, entries))
+        return f"added new lesson: {rule.strip()}"
 
 
 def prune_lesson(root: Path, config: dict[str, object], match_text: str) -> str:
     lessons_path = memory_dir(root, config) / "LESSONS.md"
-    header, entries = split_lessons(read_text(lessons_path))
-    scored = sorted(entries, key=lambda entry: similarity(str(entry["rule"]), match_text), reverse=True)
-    if not scored or similarity(str(scored[0]["rule"]), match_text) < 0.5:
-        raise SystemExit(f"no lesson matches: {match_text}")
-    removed = scored[0]
-    entries.remove(removed)
-    write_text(lessons_path, render(header, entries))
-    return f"pruned lesson (had {removed['hits']} hits): {removed['rule']}"
+    with workspace_lock(root, config, name="lessons"):
+        header, entries = split_lessons(read_text(lessons_path))
+        scored = sorted(entries, key=lambda entry: similarity(str(entry["rule"]), match_text), reverse=True)
+        if not scored or similarity(str(scored[0]["rule"]), match_text) < 0.5:
+            raise SystemExit(f"no lesson matches: {match_text}")
+        removed = scored[0]
+        entries.remove(removed)
+        write_text(lessons_path, render(header, entries))
+        return f"pruned lesson (had {removed['hits']} hits): {removed['rule']}"
 
 
 def budget_warning(root: Path, config: dict[str, object]) -> str:

@@ -1,7 +1,7 @@
 # Operator System Completion Matrix
 
 - Audit result: **PASS**
-- Checks passed: 97
+- Checks passed: 105
 - Checks failed: 0
 
 ## Matrix
@@ -20,7 +20,9 @@
 | required file: scripts/package_release.py | PASS | `scripts/package_release.py` |
 | required file: scripts/scaffold_workspace.py | PASS | `scripts/scaffold_workspace.py` |
 | required file: scripts/upgrade_workspace.py | PASS | `scripts/upgrade_workspace.py` |
+| required file: scripts/demo_walkthrough.py | PASS | `scripts/demo_walkthrough.py` |
 | required file: .github/workflows/ci.yml | PASS | `.github/workflows/ci.yml` |
+| required file: .github/workflows/release.yml | PASS | `.github/workflows/release.yml` |
 | required file: VERSION | PASS | `VERSION` |
 | required file: CHANGELOG.md | PASS | `CHANGELOG.md` |
 | required file: templates/AGENTS.md | PASS | `templates/AGENTS.md` |
@@ -32,6 +34,7 @@
 | generated helper script: backup_verify.py | PASS | `templates/hub/scripts/backup_verify.py` |
 | generated helper script: chat_file_fetch.py | PASS | `templates/hub/scripts/chat_file_fetch.py` |
 | generated helper script: chat_file_intake.py | PASS | `templates/hub/scripts/chat_file_intake.py` |
+| generated helper script: config_check.py | PASS | `templates/hub/scripts/config_check.py` |
 | generated helper script: deliver_outbox.py | PASS | `templates/hub/scripts/deliver_outbox.py` |
 | generated helper script: export_runtime_adapters.py | PASS | `templates/hub/scripts/export_runtime_adapters.py` |
 | generated helper script: install_automations.py | PASS | `templates/hub/scripts/install_automations.py` |
@@ -41,9 +44,11 @@
 | generated helper script: memory_index_refresh.py | PASS | `templates/hub/scripts/memory_index_refresh.py` |
 | generated helper script: memory_search.py | PASS | `templates/hub/scripts/memory_search.py` |
 | generated helper script: operator_common.py | PASS | `templates/hub/scripts/operator_common.py` |
+| generated helper script: ops.py | PASS | `templates/hub/scripts/ops.py` |
 | generated helper script: package_gate.py | PASS | `templates/hub/scripts/package_gate.py` |
 | generated helper script: preflight_capabilities.py | PASS | `templates/hub/scripts/preflight_capabilities.py` |
 | generated helper script: publish_status.py | PASS | `templates/hub/scripts/publish_status.py` |
+| generated helper script: retention_sweep.py | PASS | `templates/hub/scripts/retention_sweep.py` |
 | generated helper script: run_automation.py | PASS | `templates/hub/scripts/run_automation.py` |
 | generated helper script: run_close.py | PASS | `templates/hub/scripts/run_close.py` |
 | generated helper script: state_digest.py | PASS | `templates/hub/scripts/state_digest.py` |
@@ -91,6 +96,9 @@
 | generated path: hub/scripts/run_close.py | PASS | `hub/scripts/run_close.py` |
 | generated path: hub/scripts/lesson_add.py | PASS | `hub/scripts/lesson_add.py` |
 | generated path: hub/scripts/wiki_compile.py | PASS | `hub/scripts/wiki_compile.py` |
+| generated path: hub/scripts/ops.py | PASS | `hub/scripts/ops.py` |
+| generated path: hub/scripts/config_check.py | PASS | `hub/scripts/config_check.py` |
+| generated path: hub/scripts/retention_sweep.py | PASS | `hub/scripts/retention_sweep.py` |
 | generated path: hub/config/template-manifest.json | PASS | `hub/config/template-manifest.json` |
 | generated path: hub/scripts/chat_file_fetch.py | PASS | `hub/scripts/chat_file_fetch.py` |
 | generated path: hub/scripts/deliver_outbox.py | PASS | `hub/scripts/deliver_outbox.py` |
@@ -100,7 +108,7 @@
 | release archive builds | PASS | `operator-system-starter-audit.tar.gz` |
 | release manifest exists | PASS | `operator-system-starter-audit.manifest.json` |
 | release archive exists | PASS | `operator-system-starter-audit.tar.gz` |
-| release manifest has expected breadth | PASS | `file_count=59` |
+| release manifest has expected breadth | PASS | `file_count=64` |
 | release includes chat fetch helper | PASS | `manifest files` |
 | release includes audit helper | PASS | `manifest files` |
 | release includes license | PASS | `manifest files` |

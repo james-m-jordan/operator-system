@@ -21,6 +21,7 @@ from operator_common import (
     relpath,
     resolve_root,
     split_action_log,
+    workspace_lock,
     write_text,
 )
 
@@ -96,9 +97,12 @@ def main() -> int:
         print("- Dry run. Re-run with --execute to rotate.")
         return 0
 
-    touched = append_archive(mem / "archive", archived)
-    new_log = "\n".join(preamble).rstrip() + "\n\n" + "\n".join(entry_text(entry) for entry in retained) + "\n"
-    write_text(log_path, new_log)
+    with workspace_lock(root, config, name="action-log"):
+        preamble, entries = split_action_log(read_text(log_path))
+        retained, archived = plan_rotation(entries, keep)
+        touched = append_archive(mem / "archive", archived)
+        new_log = "\n".join(preamble).rstrip() + "\n\n" + "\n".join(entry_text(entry) for entry in retained) + "\n"
+        write_text(log_path, new_log)
     for path in touched:
         print(f"Updated {relpath(root, path)}")
     print(f"Rewrote {relpath(root, log_path)}")

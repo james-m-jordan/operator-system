@@ -176,6 +176,15 @@ Generated helper scripts:
 - `run_close.py` - records the outcome and improvement of one automation run (`--lesson` adds/re-confirms a lesson inline).
 - `lesson_add.py` - adds, re-confirms (hit counts), or prunes lessons in `hub/MEMORY/LESSONS.md`.
 - `wiki_compile.py` - compiles `hub/wiki/overview.md` from indexes, lessons, and run history.
+- `config_check.py` - validates `hub/config/org.json` types, cron fields, and adapter names.
+- `retention_sweep.py` - retires old runtime artifacts into `archive/retired/` (dry-run by default).
+- `ops.py` - single entry point: `startup`, `doctor`, `run`, `close`, `search`, `review`, `compact`, `sweep`, `wiki`.
+
+Shortcut for the whole startup refresh:
+
+```bash
+python3 hub/scripts/ops.py startup
+```
 - `package_gate.py` - checks whether one work item has source, metadata, and context.
 - `install_automations.py` - installs automation prompt/spec bundles from `hub/automations/automation-manifest.json`.
 - `task_draft.py` - writes no-terminal collaborator task drafts under `hub/MEMORY/task-drafts/`.

@@ -16,6 +16,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from operator_common import (
     SYNC_RISK_LABELS,
+    heartbeat_status,
     latest_sync_report,
     load_config,
     load_memory_budgets,
@@ -175,6 +176,9 @@ def build_report(root: Path, config: dict[str, object]) -> dict[str, object]:
             + ", ".join(f"{label}={count}" for label, count in sync_risks.items())
             + ". See hub/MEMORY/repo-syncs/."
         )
+    overdue = [item["id"] for item in heartbeat_status(root, config) if item["status"] == "overdue"]
+    if overdue:
+        notes.append("Overdue scheduled automations (advisory): " + ", ".join(overdue) + ".")
 
     return {
         "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
