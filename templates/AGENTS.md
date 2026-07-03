@@ -140,13 +140,24 @@ Substantive runs must update durable memory before closeout:
 - Communication decisions: `hub/MEMORY/comms.md`.
 
 Improvement ratchet: every substantive run leaves the system at least one
-notch better before closeout — add one lesson to `hub/MEMORY/LESSONS.md`
-(or increment a re-confirmed lesson's hit count), correct one wrong memory
-entry, or prune one stale entry. Then run
-`python3 hub/scripts/memory_health.py --root . --write` and fix any budget
-violation you introduced. Rotate an over-budget action log with
+notch better before closeout. Valid improvement types (recorded by
+`run_close.py`):
+
+- `lesson` - add or re-confirm a rule in `hub/MEMORY/LESSONS.md`; use
+  `python3 hub/scripts/lesson_add.py --rule "..." --evidence <path>` or the
+  `run_close.py --lesson "..."` shortcut, which dedupes and counts hits.
+- `correction` - fix one wrong memory entry.
+- `pruning` - remove one stale entry.
+- `promotion` - promote a repeated lesson into a LANDMARKS contract or a
+  prompt/script fix (usually the System Review Loop).
+- `none` - allowed but counted; too many recent no-improvement closes
+  violate the `runs_without_improvement_max` budget.
+
+Then run `python3 hub/scripts/memory_health.py --root . --write` and fix any
+budget violation you introduced. Rotate an over-budget action log with
 `python3 hub/scripts/memory_compact.py --root .` (add `--execute` after
-reviewing the plan).
+reviewing the plan). Note that `sync_workspace.py` is also dry-run-first:
+plain runs fetch and report; pass `--execute` to fast-forward or stash-sync.
 
 Keep generated state in `state-digest.md` and tool health in
 `capabilities.json`; refresh them with the configured scripts instead of

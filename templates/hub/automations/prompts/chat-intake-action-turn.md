@@ -16,3 +16,7 @@ Rules:
    action belongs to a collaborator.
 7. Reply in the originating thread for acted-on items; end quietly when nothing
    actionable exists and the workflow allows it.
+
+Closeout ratchet: read `hub/MEMORY/LESSONS.md` before acting. Before ending,
+log the run, leave one improvement (lesson, correction, or pruning), refresh
+memory health, and close the run record with `hub/scripts/run_close.py`.

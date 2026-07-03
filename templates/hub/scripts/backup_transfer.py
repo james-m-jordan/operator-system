@@ -137,6 +137,7 @@ def run_transfer(
     patterns: list[str],
     method: str,
     execute: bool,
+    timeout_seconds: int = 3600,
 ) -> tuple[int, str, list[str]]:
     if method == "local-copy":
         if not isinstance(destination, Path):
@@ -157,7 +158,10 @@ def run_transfer(
             return 0, "dry-run rsync command: " + shlex.join(command), required
         if isinstance(destination, Path):
             destination.mkdir(parents=True, exist_ok=True)
-        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            return 124, f"rsync timed out after {timeout_seconds}s", required
         detail = (result.stdout + result.stderr).strip()
         return result.returncode, detail[:2000], required
     return 2, f"unsupported backup transfer method: {method}", []
@@ -174,6 +178,7 @@ def render_report(
     detail: str,
     copied: list[str],
     missing: list[str],
+    run_id: str = "",
 ) -> str:
     created = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     lines = ["# Backup Transfer Report", ""]
@@ -183,6 +188,8 @@ def render_report(
     lines.append(f"- Method: `{method}`")
     lines.append(f"- Executed: `{execute}`")
     lines.append(f"- Return code: `{returncode}`")
+    if run_id:
+        lines.append(f"- Automation run: `{run_id}`")
     lines.append("")
     lines.append("## Required Paths")
     lines.append("")
@@ -221,7 +228,8 @@ def main() -> int:
     parser.add_argument("--destination", default="", help="Backup destination override.")
     parser.add_argument("--method", default="", choices=["", "local-copy", "rsync"], help="Transfer method override.")
     parser.add_argument("--execute", action="store_true", help="Execute transfer. Default only writes a dry-run plan.")
-    parser.add_argument("--write-report", action="store_true", help="Write report under hub/MEMORY/backups/.")
+    parser.add_argument("--write-report", "--write", dest="write_report", action="store_true", help="Write report under hub/MEMORY/backups/.")
+    parser.add_argument("--run-id", default="", help="Automation run ID this transfer belongs to; recorded in the report.")
     args = parser.parse_args()
 
     root = resolve_root(args.root)
@@ -231,11 +239,13 @@ def main() -> int:
     missing = missing_required(root, required)
     method = method_name(config, args.method)
     destination = destination_value(root, config, args.destination, method)
+    transfer = transfer_config(config)
+    timeout_seconds = transfer.get("timeout_seconds") if isinstance(transfer.get("timeout_seconds"), int) else 3600
     if missing:
         returncode, detail, copied = 1, "required source paths are missing", []
     else:
-        returncode, detail, copied = run_transfer(root, destination, required, patterns, method, args.execute)
-    report = render_report(root, destination, required, patterns, method, args.execute, returncode, detail, copied, missing)
+        returncode, detail, copied = run_transfer(root, destination, required, patterns, method, args.execute, timeout_seconds)
+    report = render_report(root, destination, required, patterns, method, args.execute, returncode, detail, copied, missing, args.run_id)
     if args.write_report:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         out = memory_dir(root, config) / "backups" / f"backup-transfer-{timestamp}.md"

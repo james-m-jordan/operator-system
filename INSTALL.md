@@ -76,7 +76,37 @@ python3 hub/scripts/deliver_outbox.py --root . --publisher status --latest
 `deliver_outbox.py` writes a delivery receipt by default. It sends externally
 only when `--execute` is passed and the selected delivery adapter is configured.
 Supported adapters are `slack-webhook`, `webhook-json`, `github-issue`,
-`command`, and no-op outbox-only delivery.
+`command`, and no-op outbox-only delivery. Pass `--run-id <id>` so the receipt
+links back to the automation run it belongs to.
+
+Scheduling note: only automations with an `automation_schedules` entry in
+`hub/config/org.json` appear in the exported cron/Actions drafts. The rest
+(chat intake, chat file intake, receipt packets, and any others you leave
+unscheduled) are trigger- or request-driven; create their packets on demand
+with `run_automation.py`.
+
+### Running packets with an agent CLI
+
+A run packet is a self-contained prompt. To have an agent runtime execute it,
+set `runtime.agent_command` in `hub/config/org.json` — the `{packet}` token is
+replaced with the packet path:
+
+```json
+"runtime": {
+  "agent_command": ["claude", "-p", "{packet}"],
+  "agent_timeout_seconds": 3600
+}
+```
+
+Then one command creates the packet, runs the agent on it, and records the
+result to `invoke.json` in the run folder:
+
+```bash
+python3 hub/scripts/run_automation.py --root . --automation-id morning-control-panel --invoke
+```
+
+The packet instructs the agent to close the run with `run_close.py`; if the
+agent does not, close it yourself so the unclosed-runs budget stays clean.
 
 ## 5. Configure Backup Transfer
 

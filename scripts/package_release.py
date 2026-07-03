@@ -74,7 +74,8 @@ def build_release(version: str, out_dir: Path) -> tuple[Path, Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", default=date.today().isoformat(), help="Release version string.")
+    default_version = (PACKAGE_ROOT / "VERSION").read_text(encoding="utf-8").strip() if (PACKAGE_ROOT / "VERSION").exists() else date.today().isoformat()
+    parser.add_argument("--version", default=default_version, help="Release version string. Defaults to the VERSION file.")
     parser.add_argument("--out", type=Path, default=PACKAGE_ROOT / "dist", help="Output directory.")
     args = parser.parse_args()
     archive_path, manifest_path = build_release(args.version, args.out.resolve())

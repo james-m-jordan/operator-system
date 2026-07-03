@@ -59,7 +59,7 @@
       "id": "workspace-backup",
       "title": "Workspace Backup",
       "cadence": "scheduled",
-      "connectors": ["filesystem", "remote-shell"],
+      "connectors": ["filesystem", "rsync"],
       "prompt_file": "prompts/workspace-backup.md",
       "writes": ["hub/MEMORY/backups/"],
       "closeout": "Verify required paths at the destination and report failures explicitly."

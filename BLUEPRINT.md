@@ -34,13 +34,15 @@ queryable:
 | `hub/MEMORY/LESSONS.md` | Compact reusable behavior rules with hit counts. Read on every admin run; the per-run improvement ratchet. |
 | `hub/MEMORY/indexes/memory-health.json` | Budget compliance snapshot for compact memory surfaces, plus an append-only history trend. |
 | `hub/MEMORY/agent-action-log.md` | Chronological account of substantive work. Rotated into `archive/` when over budget. |
+| `hub/MEMORY/automation-runs/` | Run packets plus `close.json` outcome records and `invoke.json` agent-invocation results. |
+| `hub/MEMORY/self-optimization/` | Dated system-review-loop consolidation reports. |
 | `hub/MEMORY/people-bios.md` | Durable person context: responsibilities, preferences, constraints, active work. |
 | `hub/MEMORY/work-item-bios.md` | Durable work-stream context: scope, status, blockers, next actions. |
 | `hub/MEMORY/comms.md` | Important communication context and decisions. |
 | `hub/MEMORY/references.md` | Distilled reusable external-reference takeaways. |
 | `hub/MEMORY/repo-syncs/` | Dated sync/preflight reports. |
 | `hub/MEMORY/archive/` | Retired reports and inactive automation artifacts. |
-| `hub/wiki/` | Slower-changing synthesized views compiled from memory and work-item state. |
+| `hub/wiki/` | Slower-changing synthesized views compiled from memory and work-item state by `wiki_compile.py`. |
 
 ## Generalized Automations
 
@@ -65,6 +67,9 @@ The live `lia-live` automation set maps to these portable modules:
 | Action log rotation | Memory Compaction (`memory_compact.py`) | Generic helper included. |
 | Deep-history retrieval | Memory Search (`memory_search.py`) | Generic helper included. |
 | Run outcome tracking | Run Closeout (`run_close.py`) | Generic helper included. |
+| Lesson lifecycle | Lesson Add/Confirm/Prune (`lesson_add.py`) | Generic helper included. |
+| Wiki synthesis | Wiki Compile (`wiki_compile.py`) | Generic helper included. |
+| Agent runtime invocation | Run Automation `--invoke` + `runtime.agent_command` | Generic adapter included. |
 | Kit-to-workspace updates | Workspace Upgrade (`scripts/upgrade_workspace.py` + template manifest) | Generic helper included. |
 | `work_package_gate.py` | Work Package Gate | Generic helper included. |
 | Automation TOML/prompt installs | Automation Manifest Installer | Generic helper included. |

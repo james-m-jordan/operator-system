@@ -15,14 +15,19 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from operator_common import (
+    SYNC_RISK_LABELS,
+    latest_sync_report,
     load_config,
     load_memory_budgets,
     memory_dir,
+    parse_sync_summary,
     read_text,
     resolve_root,
     split_action_log,
     write_json,
 )
+
+RECENT_RUN_WINDOW = 20
 
 DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
@@ -45,16 +50,20 @@ def count_active_lessons(path: Path) -> int:
 
 
 def run_close_stats(root: Path, config: dict[str, object]) -> tuple[int, int, int]:
-    """Return (total runs, unclosed runs, runs closed without an improvement)."""
+    """Return (total runs, unclosed runs, recent runs closed without an improvement).
+
+    The no-improvement count covers only the most recent RECENT_RUN_WINDOW runs
+    so old history cannot permanently violate the budget.
+    """
     runtime = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
     run_root = root / str(runtime.get("run_root", "hub/MEMORY/automation-runs"))
-    total = unclosed = no_improvement = 0
     if not run_root.exists():
-        return total, unclosed, no_improvement
-    for child in sorted(run_root.iterdir()):
-        if not (child / "run.json").exists():
-            continue
-        total += 1
+        return 0, 0, 0
+    run_dirs = sorted(child for child in run_root.iterdir() if (child / "run.json").exists())
+    total = len(run_dirs)
+    unclosed = no_improvement = 0
+    recent = set(str(child) for child in run_dirs[-RECENT_RUN_WINDOW:])
+    for child in run_dirs:
         close_path = child / "close.json"
         if not close_path.exists():
             unclosed += 1
@@ -63,7 +72,7 @@ def run_close_stats(root: Path, config: dict[str, object]) -> tuple[int, int, in
             close = json.loads(close_path.read_text(encoding="utf-8"))
         except Exception:
             continue
-        if close.get("improvement", "none") == "none":
+        if close.get("improvement", "none") == "none" and str(child) in recent:
             no_improvement += 1
     return total, unclosed, no_improvement
 
@@ -138,6 +147,12 @@ def build_report(root: Path, config: dict[str, object]) -> dict[str, object]:
             "budget": budgets["unclosed_runs_max"],
             "note": "run packets without a close.json outcome record",
         },
+        {
+            "name": "recent_runs_without_improvement",
+            "value": runs_without_improvement,
+            "budget": budgets["runs_without_improvement_max"],
+            "note": f"closes with improvement=none among the last {RECENT_RUN_WINDOW} runs",
+        },
     ]
     for check in checks:
         check["ok"] = check["value"] <= check["budget"]
@@ -150,7 +165,15 @@ def build_report(root: Path, config: dict[str, object]) -> dict[str, object]:
         notes.append(f"Top Of Mind has {undated} undated entries; add dates so staleness is measurable.")
     if runs_without_improvement:
         notes.append(
-            f"{runs_without_improvement} of {total_runs} closed runs recorded no improvement; the ratchet expects one per substantive run."
+            f"{runs_without_improvement} recent closed runs recorded no improvement; the ratchet expects one per substantive run."
+        )
+    sync_summary = parse_sync_summary(latest_sync_report(mem))
+    sync_risks = {label: sync_summary.get(label, 0) for label in SYNC_RISK_LABELS if sync_summary.get(label, 0)}
+    if sync_risks:
+        notes.append(
+            "Latest repo sync reports risks: "
+            + ", ".join(f"{label}={count}" for label, count in sync_risks.items())
+            + ". See hub/MEMORY/repo-syncs/."
         )
 
     return {

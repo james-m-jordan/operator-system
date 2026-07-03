@@ -23,6 +23,7 @@ DEFAULT_MEMORY_BUDGETS = {
     "action_log_max_entries": 100,
     "top_of_mind_max_age_days": 45,
     "unclosed_runs_max": 5,
+    "runs_without_improvement_max": 5,
 }
 
 
@@ -114,3 +115,46 @@ def action_log_entry_date(entry: list[str]) -> str:
     """Return the leading YYYY-MM-DD date of an entry, or empty string."""
     match = re.match(r"-\s*(\d{4}-\d{2}-\d{2})", entry[0])
     return match.group(1) if match else ""
+
+
+SYNC_RISK_LABELS = ("Diverged", "Fetch Failed", "Pull Failed", "Reapply Failed", "Hidden Stash State")
+
+RATCHET_BLOCK = """## Standard Ratchet
+
+Before acting, read all of `hub/MEMORY/LESSONS.md` and apply the active
+lessons. Before closing the run:
+
+1. Record the run in `hub/MEMORY/agent-action-log.md`.
+2. Leave one improvement: add or re-confirm a lesson in
+   `hub/MEMORY/LESSONS.md`, correct one wrong memory entry, or prune one
+   stale entry.
+3. Refresh memory health and fix any budget violation you introduced:
+   `python3 hub/scripts/memory_health.py --root . --write`
+4. Close the run record:
+   `python3 hub/scripts/run_close.py --root . --latest --outcome <success|partial|failure> --improvement <lesson|correction|pruning|promotion>`
+"""
+
+
+def latest_sync_report(mem: Path) -> Path | None:
+    reports = sorted((mem / "repo-syncs").glob("repo-sync-*.md"))
+    return reports[-1] if reports else None
+
+
+def parse_sync_summary(path: Path | None) -> dict[str, int]:
+    if not path or not path.exists():
+        return {}
+    summary: dict[str, int] = {}
+    in_summary = False
+    for line in read_text(path).splitlines():
+        if line == "## Summary":
+            in_summary = True
+            continue
+        if in_summary and line.startswith("## "):
+            break
+        if in_summary and line.startswith("- "):
+            label, _, value = line[2:].partition(":")
+            try:
+                summary[label.strip()] = int(value.strip())
+            except ValueError:
+                pass
+    return summary

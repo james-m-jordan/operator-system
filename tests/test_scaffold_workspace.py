@@ -167,6 +167,8 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
                 [sys.executable, "hub/scripts/export_runtime_adapters.py", "--root", "."],
                 [sys.executable, "hub/scripts/run_automation.py", "--root", ".", "--automation-id", "morning-control-panel"],
                 [sys.executable, "hub/scripts/run_close.py", "--root", ".", "--latest", "--outcome", "success", "--improvement", "lesson", "--improvement-ref", "hub/MEMORY/LESSONS.md"],
+                [sys.executable, "hub/scripts/lesson_add.py", "--root", ".", "--rule", "Run the package gate before any analysis.", "--evidence", "hub/MEMORY/README.md"],
+                [sys.executable, "hub/scripts/wiki_compile.py", "--root", "."],
                 [sys.executable, "hub/scripts/memory_search.py", "--root", ".", "--query", "case001"],
                 [sys.executable, "hub/scripts/memory_health.py", "--root", ".", "--write"],
                 [sys.executable, "hub/scripts/publish_status.py", "--root", ".", "--publisher", "status", "--message", "Ready"],
@@ -203,6 +205,13 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             run_packet = next((destination / "hub" / "MEMORY" / "automation-runs").glob("*/run.md")).read_text(encoding="utf-8")
             self.assertIn("## Active Lessons", run_packet)
             self.assertIn("## Required Closeout", run_packet)
+            wiki = (destination / "hub" / "wiki" / "overview.md").read_text(encoding="utf-8")
+            self.assertIn("Active Lessons", wiki)
+            self.assertIn("case001", wiki)
+            installed = (destination / ".operator-automations" / "morning-control-panel" / "automation.md").read_text(encoding="utf-8")
+            self.assertIn("Standard Ratchet", installed)
+            lessons = (destination / "hub" / "MEMORY" / "LESSONS.md").read_text(encoding="utf-8")
+            self.assertIn("Run the package gate before any analysis.", lessons)
             self.assertTrue((destination / ".operator-automations" / "morning-control-panel" / "automation.json").exists())
             self.assertTrue((destination / "hub" / "MEMORY" / "task-drafts").is_dir())
             self.assertTrue((destination / "hub" / "MEMORY" / "backups").is_dir())
@@ -300,6 +309,106 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             self.assertIn("action 6", archived)
             self.assertNotIn("action 7", archived)
             self.assertNotIn("undated note", archived)
+
+    def test_lesson_add_deduplicates_and_prunes(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            self.module.scaffold(self.config, destination)
+            lessons_path = destination / "hub" / "MEMORY" / "LESSONS.md"
+
+            def run_lesson(*extra):
+                return subprocess.run(
+                    [sys.executable, "hub/scripts/lesson_add.py", "--root", ".", *extra],
+                    cwd=destination,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+
+            first = run_lesson("--rule", "Verify webhook delivery receipts after every send.", "--evidence", "hub/MEMORY/comms.md")
+            self.assertEqual(first.returncode, 0, msg=first.stderr)
+            self.assertIn("added new lesson", first.stdout)
+
+            second = run_lesson("--rule", "Verify webhook delivery receipts after each send.")
+            self.assertEqual(second.returncode, 0, msg=second.stderr)
+            self.assertIn("re-confirmed existing lesson (hits: 2)", second.stdout)
+            text = lessons_path.read_text(encoding="utf-8")
+            self.assertEqual(text.count("Verify webhook delivery receipts"), 1)
+            self.assertIn("hits: 2", text)
+
+            pruned = run_lesson("--prune", "webhook delivery receipts")
+            self.assertEqual(pruned.returncode, 0, msg=pruned.stderr)
+            self.assertNotIn("webhook delivery receipts", lessons_path.read_text(encoding="utf-8"))
+
+    def test_run_automation_invoke_records_result(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            config = dict(self.config)
+            config["runtime"] = dict(self.config["runtime"])
+            config["runtime"]["agent_command"] = [sys.executable, "-c", "import sys; print('packet:', sys.argv[1])", "{packet}"]
+            self.module.scaffold(config, destination)
+
+            result = subprocess.run(
+                [sys.executable, "hub/scripts/run_automation.py", "--root", ".", "--automation-id", "morning-control-panel", "--invoke"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            invoke_files = list((destination / "hub" / "MEMORY" / "automation-runs").glob("*/invoke.json"))
+            self.assertEqual(len(invoke_files), 1)
+            invoke = json.loads(invoke_files[0].read_text(encoding="utf-8"))
+            self.assertEqual(invoke["returncode"], 0)
+            self.assertIn("packet:", invoke["output_tail"])
+
+    def test_sync_workspace_dry_run_then_execute(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            self.module.scaffold(self.config, destination)
+
+            def git(cwd, *args):
+                result = subprocess.run(
+                    ["git", "-c", "user.email=test@example.com", "-c", "user.name=Test", *args],
+                    cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, msg=f"git {args} failed: {result.stderr}")
+                return result.stdout.strip()
+
+            origin = Path(tmpdir) / "origin"
+            origin.mkdir()
+            git(origin, "init", "-b", "main")
+            (origin / "file.txt").write_text("one\n", encoding="utf-8")
+            git(origin, "add", "file.txt")
+            git(origin, "commit", "-m", "first")
+            clone = destination / "work-items" / "repo1"
+            git(destination, "clone", str(origin), str(clone))
+            (origin / "file.txt").write_text("two\n", encoding="utf-8")
+            git(origin, "commit", "-am", "second")
+
+            dry = subprocess.run(
+                [sys.executable, "hub/scripts/sync_workspace.py", "--root", "."],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(dry.returncode, 0, msg=dry.stderr)
+            self.assertIn("Dry run: some repos need syncing", dry.stdout)
+            self.assertEqual((clone / "file.txt").read_text(encoding="utf-8"), "one\n")
+
+            executed = subprocess.run(
+                [sys.executable, "hub/scripts/sync_workspace.py", "--root", ".", "--execute"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(executed.returncode, 0, msg=executed.stderr)
+            self.assertEqual((clone / "file.txt").read_text(encoding="utf-8"), "two\n")
 
     def test_memory_search_ranks_matches(self):
         with tempfile.TemporaryDirectory() as tmpdir:

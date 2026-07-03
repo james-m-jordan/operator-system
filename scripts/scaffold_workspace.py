@@ -16,6 +16,13 @@ ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_ROOT = ROOT / "templates"
 
 
+def kit_version() -> str:
+    version_path = ROOT / "VERSION"
+    if version_path.exists():
+        return version_path.read_text(encoding="utf-8").strip()
+    return "unknown"
+
+
 REQUIRED_CONFIG_KEYS = {
     "org_name",
     "workspace_name",
@@ -98,6 +105,7 @@ def write_generated_files(destination: Path, config: dict[str, Any], tokens: dic
 
     org_config = dict(config)
     org_config["generated_from"] = "operator-system-starter"
+    org_config["generated_from_version"] = kit_version()
     write_text(hub_root / "config" / "org.json", json.dumps(org_config, indent=2) + "\n")
 
     capabilities = {
@@ -165,7 +173,9 @@ Generated helper scripts:
 - `memory_health.py` - measures compact memory surfaces against `memory_budgets`.
 - `memory_compact.py` - rotates old action-log entries into `hub/MEMORY/archive/` (dry-run by default).
 - `memory_search.py` - keyword search across memory, wiki, knowledge base, and archives.
-- `run_close.py` - records the outcome and improvement of one automation run.
+- `run_close.py` - records the outcome and improvement of one automation run (`--lesson` adds/re-confirms a lesson inline).
+- `lesson_add.py` - adds, re-confirms (hit counts), or prunes lessons in `hub/MEMORY/LESSONS.md`.
+- `wiki_compile.py` - compiles `hub/wiki/overview.md` from indexes, lessons, and run history.
 - `package_gate.py` - checks whether one work item has source, metadata, and context.
 - `install_automations.py` - installs automation prompt/spec bundles from `hub/automations/automation-manifest.json`.
 - `task_draft.py` - writes no-terminal collaborator task drafts under `hub/MEMORY/task-drafts/`.
@@ -228,7 +238,7 @@ def scaffold(config: dict[str, Any], destination: Path, force: bool = False) -> 
     tokens = token_map(config)
     template_hashes = copy_templates(destination, tokens)
     write_generated_files(destination, config, tokens)
-    manifest = {"generated": tokens["{{DATE}}"], "files": template_hashes}
+    manifest = {"generated": tokens["{{DATE}}"], "kit_version": kit_version(), "files": template_hashes}
     write_text(
         destination / str(config["hub_root"]) / "config" / "template-manifest.json",
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",

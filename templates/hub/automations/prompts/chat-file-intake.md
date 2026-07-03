@@ -15,3 +15,7 @@ Rules:
    destination is unclear.
 6. Run `hub/scripts/package_gate.py`; if the package is blocked, use
    `hub/scripts/task_draft.py` for the missing metadata or context.
+
+Closeout ratchet: read `hub/MEMORY/LESSONS.md` before acting. Before ending,
+log the run, leave one improvement (lesson, correction, or pruning), refresh
+memory health, and close the run record with `hub/scripts/run_close.py`.

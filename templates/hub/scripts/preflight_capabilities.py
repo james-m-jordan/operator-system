@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -58,6 +59,52 @@ def check_github_cli() -> dict[str, object]:
     return {"ok": rc == 0, "detail": out or err}
 
 
+def check_env_var(name: str) -> dict[str, object]:
+    if os.environ.get(name):
+        return {"ok": True, "detail": f"{name} is set"}
+    return {"ok": False, "detail": f"environment variable {name} is not set"}
+
+
+def delivery_configs(config: dict[str, object]):
+    runtime = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
+    targets = runtime.get("publisher_targets", {}) if isinstance(runtime.get("publisher_targets"), dict) else {}
+    for target in targets.values():
+        if isinstance(target, dict) and isinstance(target.get("delivery"), dict):
+            yield target["delivery"]
+
+
+def adapter_prerequisite_checks(config: dict[str, object]) -> dict[str, object]:
+    """Check the commands and env vars the delivery/backup/fetch adapters actually need."""
+    checks: dict[str, object] = {}
+    backup = config.get("backup", {}) if isinstance(config.get("backup"), dict) else {}
+    transfer = backup.get("transfer", {}) if isinstance(backup.get("transfer"), dict) else {}
+    if transfer.get("method") == "rsync":
+        checks["rsync"] = check_command("rsync")
+    needs_gh = False
+    for delivery in delivery_configs(config):
+        delivery_type = delivery.get("type")
+        if delivery_type == "github-issue":
+            needs_gh = True
+            repo_env = delivery.get("repo_env")
+            if isinstance(repo_env, str) and repo_env:
+                checks[f"env:{repo_env}"] = check_env_var(repo_env)
+        if delivery_type == "slack-webhook":
+            url_env = delivery.get("url_env")
+            if isinstance(url_env, str) and url_env:
+                checks[f"env:{url_env}"] = check_env_var(url_env)
+    if needs_gh:
+        checks.setdefault("github_cli", check_github_cli())
+    file_sources = config.get("file_sources", {}) if isinstance(config.get("file_sources"), dict) else {}
+    chat = file_sources.get("chat", {}) if isinstance(file_sources.get("chat"), dict) else {}
+    providers = chat.get("providers", {}) if isinstance(chat.get("providers"), dict) else {}
+    for provider in providers.values():
+        if isinstance(provider, dict):
+            token_env = provider.get("token_env")
+            if isinstance(token_env, str) and token_env:
+                checks[f"env:{token_env}"] = check_env_var(token_env)
+    return checks
+
+
 def build_snapshot(root: Path, config: dict[str, object]) -> dict[str, object]:
     connectors = config.get("connectors", {})
     if not isinstance(connectors, dict):
@@ -69,6 +116,7 @@ def build_snapshot(root: Path, config: dict[str, object]) -> dict[str, object]:
     }
     if connectors.get("tasks") == "github":
         checks["github_cli"] = check_github_cli()
+    checks.update(adapter_prerequisite_checks(config))
 
     for item in config.get("optional_commands", []) or []:
         if isinstance(item, str):
@@ -84,7 +132,11 @@ def build_snapshot(root: Path, config: dict[str, object]) -> dict[str, object]:
     checks["connectors"] = connector_checks
 
     required = set(config.get("required_capabilities") or ["git", "python"])
-    degraded = [name for name, result in checks.items() if isinstance(result, dict) and not result.get("ok", False)]
+    degraded = [
+        name
+        for name, result in checks.items()
+        if name != "connectors" and isinstance(result, dict) and not result.get("ok", False)
+    ]
     required_down = [name for name in degraded if name in required]
 
     return {

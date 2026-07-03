@@ -15,3 +15,7 @@ Rules:
    `--execute` only after confirming the destination and exclusions.
 7. Report failed steps explicitly; never describe an unverified backup as
    complete.
+
+Closeout ratchet: read `hub/MEMORY/LESSONS.md` before acting. Before ending,
+log the run, leave one improvement (lesson, correction, or pruning), refresh
+memory health, and close the run record with `hub/scripts/run_close.py`.

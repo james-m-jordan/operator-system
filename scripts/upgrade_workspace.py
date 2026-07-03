@@ -81,6 +81,9 @@ def main() -> int:
     manifest_path = workspace / MANIFEST_RELATIVE
     manifest = load_json(manifest_path, {})
     manifest_files: dict[str, str] = dict(manifest.get("files", {})) if isinstance(manifest, dict) else {}
+    old_version = str(manifest.get("kit_version", "unknown")) if isinstance(manifest, dict) else "unknown"
+    version_path = args.kit_root.expanduser().resolve() / "VERSION"
+    new_version = version_path.read_text(encoding="utf-8").strip() if version_path.exists() else "unknown"
     if not manifest_files:
         print("Note: no template manifest found; locally modified files will all be reported as conflicts.")
 
@@ -101,6 +104,7 @@ def main() -> int:
     print("# Workspace Upgrade Plan")
     print(f"- Workspace: {workspace}")
     print(f"- Kit templates: {template_root}")
+    print(f"- Kit version: {old_version} -> {new_version}")
     for status in ["add", "update", "conflict"]:
         for relative in plan[status]:
             print(f"- {status}: {relative}")
@@ -122,7 +126,12 @@ def main() -> int:
         manifest_files.setdefault(relative, sha256_text(rendered[relative]))
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(
-        json.dumps({"generated": tokens["{{DATE}}"], "files": manifest_files}, indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            {"generated": tokens["{{DATE}}"], "kit_version": new_version, "files": manifest_files},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
     print(f"Applied {len(plan['add'])} adds and {len(plan['update'])} updates; refreshed {MANIFEST_RELATIVE}.")

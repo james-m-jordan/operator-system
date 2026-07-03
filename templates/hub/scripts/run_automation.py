@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -105,11 +107,49 @@ def build_run_packet(root: Path, config: dict[str, object], automation: dict[str
     return text, metadata
 
 
+def invoke_agent(root: Path, config: dict[str, object], run_dir: Path, packet_path: Path) -> int:
+    """Run the configured agent command on the packet and record the result."""
+    runtime = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
+    command = runtime.get("agent_command")
+    if isinstance(command, str):
+        command = [command]
+    if not isinstance(command, list) or not command:
+        raise SystemExit(
+            "no runtime.agent_command configured in hub/config/org.json; "
+            'set e.g. ["claude", "-p", "{packet}"] to run packets with an agent CLI'
+        )
+    resolved = [str(part).replace("{packet}", str(packet_path)) for part in command]
+    timeout = runtime.get("agent_timeout_seconds") if isinstance(runtime.get("agent_timeout_seconds"), int) else 3600
+    started = time.monotonic()
+    try:
+        result = subprocess.run(resolved, capture_output=True, text=True, check=False, timeout=timeout)
+        returncode, output = result.returncode, (result.stdout + result.stderr)[-4000:]
+    except FileNotFoundError:
+        returncode, output = 127, f"{resolved[0]} not found"
+    except subprocess.TimeoutExpired:
+        returncode, output = 124, f"agent command timed out after {timeout}s"
+    write_json(
+        run_dir / "invoke.json",
+        {
+            "invoked_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "command": resolved,
+            "returncode": returncode,
+            "duration_seconds": round(time.monotonic() - started, 1),
+            "output_tail": output,
+        },
+    )
+    print(f"Agent invocation exited {returncode}; see {relpath(root, run_dir / 'invoke.json')}")
+    if returncode == 0 and not (run_dir / "close.json").exists():
+        print("Reminder: close the run with hub/scripts/run_close.py if the agent did not.")
+    return returncode
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default="", help="Workspace root.")
     parser.add_argument("--automation-id", required=True, help="Automation ID from the manifest.")
     parser.add_argument("--print-prompt", action="store_true", help="Print run packet instead of writing it.")
+    parser.add_argument("--invoke", action="store_true", help="Run the configured runtime.agent_command on the packet after writing it.")
     args = parser.parse_args()
 
     root = resolve_root(args.root)
@@ -128,6 +168,8 @@ def main() -> int:
     write_text(run_dir / "run.md", packet_text)
     write_json(run_dir / "run.json", metadata)
     print(relpath(root, run_dir / "run.md"))
+    if args.invoke:
+        return invoke_agent(root, config, run_dir, run_dir / "run.md")
     return 0
 
 

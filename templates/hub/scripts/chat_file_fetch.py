@@ -156,7 +156,11 @@ def fetch_command(root: Path, provider: dict[str, object], args: argparse.Namesp
             "OPERATOR_ROOT": root.as_posix(),
         }
     )
-    result = subprocess.run([str(part) for part in command], capture_output=True, env=env, check=False)
+    timeout = provider.get("timeout_seconds") if isinstance(provider.get("timeout_seconds"), int) else 300
+    try:
+        result = subprocess.run([str(part) for part in command], capture_output=True, env=env, check=False, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise SystemExit(f"command provider timed out after {timeout}s")
     if result.returncode != 0:
         detail = result.stderr.decode("utf-8", errors="replace")[:1000]
         raise SystemExit(f"command provider failed with {result.returncode}: {detail}")

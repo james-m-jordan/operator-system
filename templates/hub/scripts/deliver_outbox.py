@@ -127,14 +127,19 @@ def deliver_command(delivery: dict[str, object], payload: dict[str, object], exe
             "OPERATOR_MESSAGE": str(payload.get("message", "")),
         }
     )
-    result = subprocess.run(
-        command,
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        env=env,
-        check=False,
-    )
+    timeout = delivery.get("timeout_seconds") if isinstance(delivery.get("timeout_seconds"), int) else 120
+    try:
+        result = subprocess.run(
+            command,
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return 124, f"delivery command timed out after {timeout}s"
     detail = (result.stdout + result.stderr).strip()
     return result.returncode, detail[:1000]
 
@@ -163,7 +168,11 @@ def deliver_github_issue(delivery: dict[str, object], payload: dict[str, object]
             command.extend(["--label", str(label)])
     if not execute:
         return 0, "dry-run GitHub issue command: " + shlex.join(command)
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    timeout = delivery.get("timeout_seconds") if isinstance(delivery.get("timeout_seconds"), int) else 120
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return 124, f"gh issue create timed out after {timeout}s"
     detail = (result.stdout + result.stderr).strip()
     return result.returncode, detail[:1000]
 
@@ -191,6 +200,7 @@ def write_receipt(
     execute: bool,
     returncode: int,
     detail: str,
+    run_id: str = "",
 ) -> Path:
     created = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
@@ -205,6 +215,7 @@ def write_receipt(
         "executed": execute,
         "returncode": returncode,
         "detail": detail,
+        "run_id": run_id,
     }
     write_json(base.with_suffix(".json"), receipt)
     write_text(
@@ -228,6 +239,7 @@ def main() -> int:
     parser.add_argument("--outbox-item", default="", help="Specific outbox JSON file.")
     parser.add_argument("--latest", action="store_true", help="Deliver the latest JSON item for --publisher.")
     parser.add_argument("--execute", action="store_true", help="Perform external delivery. Default is dry-run receipt only.")
+    parser.add_argument("--run-id", default="", help="Automation run ID this delivery belongs to; recorded in the receipt.")
     args = parser.parse_args()
 
     root = resolve_root(args.root)
@@ -237,8 +249,10 @@ def main() -> int:
     outbox_path, payload = load_payload(root, config, args)
     delivery = configured_delivery(payload)
     returncode, detail = deliver(payload, delivery, args.execute)
-    receipt = write_receipt(root, config, outbox_path, payload, delivery, args.execute, returncode, detail)
+    receipt = write_receipt(root, config, outbox_path, payload, delivery, args.execute, returncode, detail, args.run_id)
     print(relpath(root, receipt))
+    if args.execute and not args.run_id:
+        print("Note: no --run-id given; if this delivery closes an automation run, record it with run_close.py.")
     return returncode
 
 

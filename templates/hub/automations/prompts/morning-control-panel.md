@@ -14,3 +14,7 @@ Required sequence:
 5. Write dated markdown under `hub/MEMORY/morning/YYYY-MM-DD/`.
 6. Commit tracked hub artifacts and post one concise status update when
    configured.
+
+Closeout ratchet: read `hub/MEMORY/LESSONS.md` before acting. Before ending,
+log the run, leave one improvement (lesson, correction, or pruning), refresh
+memory health, and close the run record with `hub/scripts/run_close.py`.

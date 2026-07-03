@@ -54,7 +54,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default="", help="Workspace root.")
     parser.add_argument("--destination", default="", help="Optional backup destination to verify.")
-    parser.add_argument("--write-report", action="store_true", help="Write report under hub/MEMORY/backups/.")
+    parser.add_argument("--write-report", "--write", dest="write_report", action="store_true", help="Write report under hub/MEMORY/backups/.")
     args = parser.parse_args()
 
     root = resolve_root(args.root)

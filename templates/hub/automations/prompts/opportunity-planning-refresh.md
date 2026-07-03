@@ -11,3 +11,7 @@ Rules:
 4. Write a compact table with opportunity, fit, deadline/status, location, and
    URL when available.
 5. Update memory only when priorities or verified dates change.
+
+Closeout ratchet: read `hub/MEMORY/LESSONS.md` before acting. Before ending,
+log the run, leave one improvement (lesson, correction, or pruning), refresh
+memory health, and close the run record with `hub/scripts/run_close.py`.

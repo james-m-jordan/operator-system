@@ -34,10 +34,13 @@ Required steps:
    a candidate for a new lesson or automation change.
 5. Stay inside admin surfaces unless a work-item change is clearly safe and
    necessary.
-6. Exit gate: `python3 hub/scripts/memory_health.py --root . --write --strict`
+6. Recompile the synthesis wiki:
+   `python3 hub/scripts/wiki_compile.py --root .`
+7. Exit gate: `python3 hub/scripts/memory_health.py --root . --write --strict`
    must pass. Fix violations before closing.
-7. Write a dated review under `hub/MEMORY/self-optimization/` that records
+8. Write a dated review under `hub/MEMORY/self-optimization/` that records
    what was promoted, pruned, rotated, and fixed, plus the health trend
    compared with the previous review.
-8. Close with what changed, what was learned, and what needs the operator's
-   decision.
+9. Close with what changed, what was learned, and what needs the operator's
+   decision, and close the run record with `hub/scripts/run_close.py`
+   (improvement type `promotion` or `pruning` when consolidation happened).

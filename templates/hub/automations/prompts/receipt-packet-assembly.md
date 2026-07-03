@@ -11,3 +11,7 @@ Rules:
 4. Write a local packet README with an evidence table and caveats.
 5. Keep packet contents under `local-private/` and out of git.
 6. Record only non-sensitive memory and unresolved judgment calls.
+
+Closeout ratchet: read `hub/MEMORY/LESSONS.md` before acting. Before ending,
+log the run, leave one improvement (lesson, correction, or pruning), refresh
+memory health, and close the run record with `hub/scripts/run_close.py`.

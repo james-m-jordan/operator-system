@@ -31,7 +31,17 @@
     "lessons_max_lines": 80,
     "action_log_max_entries": 100,
     "top_of_mind_max_age_days": 45,
-    "unclosed_runs_max": 5
+    "unclosed_runs_max": 5,
+    "runs_without_improvement_max": 5
+  },
+  "feeds": {
+    "sources": [
+      "https://example.com/announcements.rss"
+    ],
+    "topics": [
+      "operations",
+      "funding"
+    ]
   },
   "file_sources": {
     "chat": {
@@ -77,6 +87,8 @@
     "adapter_output": ".operator-runtime",
     "outbox_root": "hub/MEMORY/outbox",
     "run_root": "hub/MEMORY/automation-runs",
+    "agent_command": ["echo", "Run packet ready for an agent runtime:", "{packet}"],
+    "agent_timeout_seconds": 3600,
     "scheduler_targets": [
       "cron",
       "github-actions"

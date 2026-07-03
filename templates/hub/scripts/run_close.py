@@ -46,12 +46,21 @@ def main() -> int:
     parser.add_argument("--outcome", required=True, choices=OUTCOMES, help="Run outcome.")
     parser.add_argument("--improvement", default="none", choices=IMPROVEMENTS, help="Improvement left by this run.")
     parser.add_argument("--improvement-ref", default="", help="Path or short pointer to the improvement.")
+    parser.add_argument("--lesson", default="", help="Lesson text to add or re-confirm in LESSONS.md; implies --improvement lesson.")
     parser.add_argument("--note", default="", help="Optional closeout note.")
     args = parser.parse_args()
 
     root = resolve_root(args.root)
     config = load_config(root)
     run_dir = find_run_dir(run_root_dir(root, config), args.run_id, args.latest)
+
+    if args.lesson:
+        from lesson_add import add_lesson
+
+        summary = add_lesson(root, config, args.lesson, args.improvement_ref or "hub/MEMORY/agent-action-log.md")
+        print(summary)
+        args.improvement = "lesson"
+        args.improvement_ref = "hub/MEMORY/LESSONS.md"
 
     run_meta = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
     close = {

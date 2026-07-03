@@ -14,7 +14,16 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from operator_common import load_config, memory_dir, read_text, resolve_root, write_text
+from operator_common import (
+    SYNC_RISK_LABELS,
+    latest_sync_report,
+    load_config,
+    memory_dir,
+    parse_sync_summary,
+    read_text,
+    resolve_root,
+    write_text,
+)
 
 
 def load_json(path: Path, default):
@@ -95,31 +104,6 @@ def automation_heartbeat(root: Path, config: dict[str, object]) -> list[str]:
     return lines or ["- No enabled automation schedules."]
 
 
-def latest_sync_report(mem: Path) -> Path | None:
-    reports = sorted((mem / "repo-syncs").glob("repo-sync-*.md"))
-    return reports[-1] if reports else None
-
-
-def parse_sync_summary(path: Path | None) -> dict[str, int]:
-    if not path or not path.exists():
-        return {}
-    summary: dict[str, int] = {}
-    in_summary = False
-    for line in read_text(path).splitlines():
-        if line == "## Summary":
-            in_summary = True
-            continue
-        if in_summary and line.startswith("## "):
-            break
-        if in_summary and line.startswith("- "):
-            label, _, value = line[2:].partition(":")
-            try:
-                summary[label.strip()] = int(value.strip())
-            except ValueError:
-                pass
-    return summary
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default="", help="Workspace root.")
@@ -175,10 +159,7 @@ def main() -> int:
         lines.append(f"- Latest sync: `{sync_report.relative_to(root)}`")
         lines.append(
             "- Sync risks: "
-            + ", ".join(
-                f"{key}:{sync_summary.get(key, 0)}"
-                for key in ("Diverged", "Fetch Failed", "Pull Failed", "Reapply Failed", "Hidden Stash State")
-            )
+            + ", ".join(f"{key}:{sync_summary.get(key, 0)}" for key in SYNC_RISK_LABELS)
         )
     else:
         lines.append("- No sync report found. Run `python3 hub/scripts/sync_workspace.py --root <workspace>`.")

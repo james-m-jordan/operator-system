@@ -31,6 +31,8 @@ REQUIRED_FILES = [
     "scripts/scaffold_workspace.py",
     "scripts/upgrade_workspace.py",
     ".github/workflows/ci.yml",
+    "VERSION",
+    "CHANGELOG.md",
     "templates/AGENTS.md",
     "templates/hub/automations.md",
     "templates/hub/automations/automation-manifest.json",
@@ -46,6 +48,7 @@ REQUIRED_TEMPLATE_SCRIPTS = [
     "deliver_outbox.py",
     "export_runtime_adapters.py",
     "install_automations.py",
+    "lesson_add.py",
     "memory_compact.py",
     "memory_health.py",
     "memory_index_refresh.py",
@@ -59,6 +62,7 @@ REQUIRED_TEMPLATE_SCRIPTS = [
     "state_digest.py",
     "sync_workspace.py",
     "task_draft.py",
+    "wiki_compile.py",
 ]
 
 EXPECTED_AUTOMATIONS = [
@@ -168,6 +172,8 @@ def audit_generated_workspace() -> list[dict[str, Any]]:
             "hub/scripts/memory_compact.py",
             "hub/scripts/memory_search.py",
             "hub/scripts/run_close.py",
+            "hub/scripts/lesson_add.py",
+            "hub/scripts/wiki_compile.py",
             "hub/config/template-manifest.json",
             "hub/scripts/chat_file_fetch.py",
             "hub/scripts/deliver_outbox.py",
