@@ -36,6 +36,90 @@ This is a packaged starter kit, not a hosted application. It contains:
   manifest for handoff
 - `tests/` - smoke tests for the scaffold command
 
+## How It Works
+
+```
+╔══════════════════════════ STARTER KIT (this repo) ══════════════════════════════════╗
+║   templates/  +  config/org.json          CI: compile · tests · release audit       ║
+║                                                                                      ║
+║   scaffold_workspace.py ──render──▶ NEW WORKSPACE     (file hashes ▶ template-      ║
+║   upgrade_workspace.py ──safe updates──▶ EXISTING      manifest.json + kit version) ║
+║        · adds new files, updates unmodified ones                                     ║
+║        · skips locally-edited files as conflicts                                     ║
+║        · never touches hub/MEMORY/ or hub/admin-docs/                                ║
+╚══════════════════════════════════════════╤═══════════════════════════════════════════╝
+                                           ▼
+┌────────────────────────────── GENERATED WORKSPACE ───────────────────────────────┐
+│  AGENTS.md ····· agent rules + startup checklist + improvement ratchet           │
+│  work-items/ ··· canonical task packages (gated: source + metadata + context)    │
+│  knowledge-base/ shared procedures      local-private/ ·· ignored, never in git  │
+│                                                                                   │
+│  hub/ ─ admin control room                                                        │
+│  ├─ MEMORY ─ compact, budget-enforced (read every run)                            │
+│  │    state-digest.md   ◀─ regenerated: counts, health, trend, heartbeat         │
+│  │    LANDMARKS.md      ◀─ durable operating contracts                           │
+│  │    LESSONS.md        ◀─ reusable rules with hit counts   ◀── THE RATCHET      │
+│  │    capabilities.json ◀─ preflight: tools, rsync/gh, token env vars            │
+│  │    indexes/          ◀─ work items, blockers, memory-health-history.jsonl     │
+│  ├─ MEMORY ─ deep history (searchable via memory_search.py)                       │
+│  │    agent-action-log.md ──over budget──▶ archive/action-log-<year>.md          │
+│  │    automation-runs/<id>/ (run.md · run.json · close.json · invoke.json)       │
+│  │    self-optimization/ · repo-syncs/ · outbox/ · morning/ · backups/           │
+│  ├─ wiki/overview.md    ◀─ compiled synthesis (wiki_compile.py)                  │
+│  └─ automations/        ◀─ manifest + 9 prompts (all carry the Standard Ratchet) │
+└───────────────────────────────────────────────────────────────────────────────────┘
+
+              THE RUN LOOP ── "every turn gets a little better"
+              ─────────────────────────────────────────────────
+   cron / GitHub Actions / operator
+        │
+        ▼
+   run_automation.py --invoke
+        │  builds packet:  prompt + Active Lessons (injected) + Required Closeout
+        ▼
+   runtime.agent_command ["claude","-p","{packet}"]     (timeout, invoke.json)
+        │
+        ▼  agent does bounded work, then MUST close out:
+   ┌─────────────────────────────────────────────────────────────────┐
+   │ 1. log the run          ▶ agent-action-log.md                   │
+   │ 2. leave ONE improvement▶ lesson_add.py (fuzzy dedupe, hits++)  │
+   │                           or correct / prune a memory entry     │
+   │ 3. refresh health       ▶ memory_health.py --write (trend line) │
+   │ 4. close the run        ▶ run_close.py (outcome + improvement)  │
+   └─────────────────────────────────────────────────────────────────┘
+
+              THE FLYWHEEL ── lessons become permanent behavior
+              ─────────────────────────────────────────────────
+        every run reads LESSONS.md ◀────────────────────────────┐
+                    │                                            │
+        confirms/adds lessons (hits++)                           │
+                    │                                            │
+                    ▼            hits ≥ 3                        │
+        system-review-loop ──promotes──▶ LANDMARKS contracts     │
+        (weekly)    │                     or prompt/script fixes─┘
+                    ├─ prunes stale lessons & Top-Of-Mind entries
+                    ├─ memory_compact.py rotates the action log
+                    ├─ wiki_compile.py refreshes the synthesis
+                    └─ exit gate: memory_health.py --strict must pass
+
+              WATCHDOGS ── silence never looks like success
+              ─────────────────────────────────────────────
+   · budgets: LANDMARKS/digest/LESSONS lines, log entries, unclosed runs,
+              recent no-improvement closes  (memory_health.py, --strict gates)
+   · heartbeat: state digest flags OVERDUE / never-run scheduled automations
+   · trend: memory-health-history.jsonl deltas shown in every digest
+   · preflight: adapter prerequisites checked before they can fail mid-run
+   · dry-run-first everywhere: sync, compact, transfer, deliver need --execute
+```
+
+In one paragraph: the **kit** stamps out and upgrades **workspaces**; each
+workspace runs **automations** whose packets carry the current lessons in and
+require one improvement out (the ratchet); the **review loop** periodically
+compresses repeated lessons into permanent contracts and prunes the rest; and
+the **watchdogs** make decay visible — budgets for memory bloat, a heartbeat
+for dead automations, and a health trend that shows whether "a little better
+every turn" is actually happening.
+
 ## Quick Start
 
 Preview the generated workspace in a throwaway path:
