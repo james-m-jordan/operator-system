@@ -32,6 +32,9 @@ python3 hub/scripts/run_close.py --root . --latest --outcome success --improveme
 python3 hub/scripts/lesson_add.py --root . --rule "Example lesson for smoke test." --evidence hub/MEMORY/README.md
 python3 hub/scripts/memory_search.py --root . --query "scaffold"
 python3 hub/scripts/wiki_compile.py --root .
+python3 hub/scripts/operator_report.py --root . --write
+python3 hub/scripts/lesson_pack.py export --root . --min-hits 1
+python3 hub/scripts/run_close.py --root . --verify-chain
 python3 hub/scripts/publish_status.py --root . --publisher status --message "Ready for review"
 python3 hub/scripts/deliver_outbox.py --root . --publisher status --latest
 python3 hub/scripts/backup_transfer.py --root . --write-report

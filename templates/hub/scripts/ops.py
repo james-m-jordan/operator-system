@@ -11,6 +11,9 @@ Commands:
   compact            action-log rotation plan (add --execute to rotate)
   sweep              retention sweep plan (add --execute to retire old artifacts)
   wiki               recompile hub/wiki/overview.md
+  report             compile the executive operator report (add --write to save)
+  pack export|import lesson pack export/import (args pass through to lesson_pack.py)
+  verify             verify the tamper-evident close chain
 """
 
 from __future__ import annotations
@@ -85,6 +88,15 @@ def main() -> int:
         return run_script("retention_sweep.py", *root_args, *rest)
     if command == "wiki":
         return run_script("wiki_compile.py", *root_args, *rest)
+    if command == "report":
+        return run_script("operator_report.py", *root_args, *rest)
+    if command == "pack":
+        if not rest or rest[0] not in {"export", "import"}:
+            print("usage: ops pack export|import [args...]")
+            return 2
+        return run_script("lesson_pack.py", rest[0], *root_args, *rest[1:])
+    if command == "verify":
+        return run_script("run_close.py", *root_args, "--verify-chain")
     print(f"unknown command: {command}")
     print(__doc__.strip())
     return 2

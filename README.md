@@ -120,6 +120,32 @@ the **watchdogs** make decay visible — budgets for memory bloat, a heartbeat
 for dead automations, and a health trend that shows whether "a little better
 every turn" is actually happening.
 
+## Portable Institutional Memory
+
+Agent frameworks ship code. This system ships **judgment** — versioned,
+auditable, and portable across an organization:
+
+- **Lesson Packs** (`hub/scripts/lesson_pack.py`). Lessons here are
+  structured data: dated, hit-counted, organization-neutral rules. Export the
+  battle-tested ones (`ops pack export --min-hits 3`) and import them into
+  any other workspace, where they merge through the same fuzzy dedupe the
+  ratchet uses. A rule learned by one team propagates to every workspace on
+  the next cycle — the org learns once, everywhere. Packs carry rules, not
+  data: evidence paths are stripped by default and the source stays anonymous
+  unless you opt in, so consultancies and multi-team companies can share
+  operational judgment without sharing client information.
+- **The Operator Report** (`hub/scripts/operator_report.py`, or
+  `ops report`). A periodic executive brief compiled from records the system
+  already keeps: runs per automation with outcomes, improvements recorded,
+  active lessons and re-confirmations, the memory-health trend, executed
+  deliveries, and any overdue automations. The compounding loop becomes
+  visible to the person who signs the check.
+- **Receipts** (`ops verify`). Every run closeout is appended to a
+  hash-chained ledger (`hub/MEMORY/indexes/close-chain.jsonl`), so the run
+  history is tamper-evident on top of git's own history. Every agent action
+  has a receipt, every receipt is chained, and the whole thing lives in your
+  repo — not someone else's cloud.
+
 ## Quick Start
 
 See the whole loop working in under a minute:

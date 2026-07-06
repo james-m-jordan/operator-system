@@ -68,6 +68,9 @@ The live `lia-live` automation set maps to these portable modules:
 | Deep-history retrieval | Memory Search (`memory_search.py`) | Generic helper included. |
 | Run outcome tracking | Run Closeout (`run_close.py`) | Generic helper included. |
 | Lesson lifecycle | Lesson Add/Confirm/Prune (`lesson_add.py`) | Generic helper included. |
+| Portable institutional memory | Lesson Packs (`lesson_pack.py` export/import) | Generic helper included. |
+| Executive reporting | Operator Report (`operator_report.py`) | Generic helper included. |
+| Tamper-evident run ledger | Close Chain (`run_close.py --verify-chain`) | Generic helper included. |
 | Wiki synthesis | Wiki Compile (`wiki_compile.py`) | Generic helper included. |
 | Agent runtime invocation | Run Automation `--invoke` + `runtime.agent_command` | Generic adapter included. |
 | Kit-to-workspace updates | Workspace Upgrade (`scripts/upgrade_workspace.py` + template manifest) | Generic helper included. |

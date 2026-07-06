@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 - 2026-07-05
+
+- Lesson Packs (`lesson_pack.py`): export promoted lessons as a portable,
+  sanitized pack; import merges through the ratchet's fuzzy dedupe with
+  provenance — organizations learn once, everywhere.
+- Operator Report (`operator_report.py` / `ops report`): executive brief of
+  runs, outcomes, improvements, lessons, health trend, deliveries, and
+  overdue automations over a window.
+- Tamper-evident close chain: every run closeout appends to a hash-chained
+  ledger (`indexes/close-chain.jsonl`); verify with
+  `run_close.py --verify-chain` or `ops verify`.
+- README: "Portable Institutional Memory" positioning section.
+
 ## 0.4.0 - 2026-07-02
 
 - New `ops.py` single entry point (`startup`, `doctor`, `run`, `close`,

@@ -559,6 +559,148 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             self.assertEqual(executed.returncode, 0, msg=executed.stderr)
             self.assertEqual((clone / "file.txt").read_text(encoding="utf-8"), "two\n")
 
+    def test_lesson_pack_export_import_roundtrip(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_ws = Path(tmpdir) / "source"
+            target_ws = Path(tmpdir) / "target"
+            self.module.scaffold(self.config, source_ws)
+            self.module.scaffold(self.config, target_ws)
+
+            for _ in range(3):
+                subprocess.run(
+                    [sys.executable, "hub/scripts/lesson_add.py", "--root", ".", "--rule", "Escalate ambiguous approvals to the owner.", "--evidence", "hub/MEMORY/comms.md"],
+                    cwd=source_ws,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+            subprocess.run(
+                [sys.executable, "hub/scripts/lesson_add.py", "--root", ".", "--rule", "Low-signal one-off note.", "--evidence", "x"],
+                cwd=source_ws,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            pack_path = Path(tmpdir) / "pack.json"
+            export = subprocess.run(
+                [sys.executable, "hub/scripts/lesson_pack.py", "export", "--root", ".", "--min-hits", "3", "--name", "ops-wisdom", "--out", str(pack_path)],
+                cwd=source_ws,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(export.returncode, 0, msg=export.stderr)
+            pack = json.loads(pack_path.read_text(encoding="utf-8"))
+            self.assertEqual(pack["source"], "anonymous")
+            rules = [lesson["rule"] for lesson in pack["lessons"]]
+            self.assertIn("Escalate ambiguous approvals to the owner.", rules)
+            self.assertNotIn("Low-signal one-off note.", rules)
+            self.assertTrue(all(lesson["evidence"] == "" for lesson in pack["lessons"]))
+
+            dry = subprocess.run(
+                [sys.executable, "hub/scripts/lesson_pack.py", "import", "--root", ".", "--pack", str(pack_path)],
+                cwd=target_ws,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(dry.returncode, 0, msg=dry.stderr)
+            self.assertIn("Dry run", dry.stdout)
+            self.assertNotIn("Escalate ambiguous approvals", (target_ws / "hub" / "MEMORY" / "LESSONS.md").read_text(encoding="utf-8"))
+
+            merged = subprocess.run(
+                [sys.executable, "hub/scripts/lesson_pack.py", "import", "--root", ".", "--pack", str(pack_path), "--execute"],
+                cwd=target_ws,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(merged.returncode, 0, msg=merged.stderr)
+            lessons = (target_ws / "hub" / "MEMORY" / "LESSONS.md").read_text(encoding="utf-8")
+            self.assertIn("Escalate ambiguous approvals to the owner.", lessons)
+            self.assertIn("pack:ops-wisdom", lessons)
+
+    def test_close_chain_verifies_and_detects_tampering(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            self.module.scaffold(self.config, destination)
+            for automation_id in ("morning-control-panel", "system-review-loop"):
+                subprocess.run(
+                    [sys.executable, "hub/scripts/run_automation.py", "--root", ".", "--automation-id", automation_id],
+                    cwd=destination,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                close = subprocess.run(
+                    [sys.executable, "hub/scripts/run_close.py", "--root", ".", "--latest", "--outcome", "success", "--improvement", "pruning"],
+                    cwd=destination,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(close.returncode, 0, msg=close.stderr)
+
+            chain_path = destination / "hub" / "MEMORY" / "indexes" / "close-chain.jsonl"
+            entries = [json.loads(line) for line in chain_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+            self.assertEqual(len(entries), 2)
+            self.assertEqual(entries[1]["prev_hash"], entries[0]["hash"])
+
+            verify = subprocess.run(
+                [sys.executable, "hub/scripts/run_close.py", "--root", ".", "--verify-chain"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(verify.returncode, 0, msg=verify.stdout)
+            self.assertIn("Chain OK: 2", verify.stdout)
+
+            tampered = chain_path.read_text(encoding="utf-8").replace('"outcome": "success"', '"outcome": "failure"', 1)
+            chain_path.write_text(tampered, encoding="utf-8")
+            broken = subprocess.run(
+                [sys.executable, "hub/scripts/run_close.py", "--root", ".", "--verify-chain"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(broken.returncode, 1)
+            self.assertIn("BROKEN", broken.stdout)
+
+    def test_operator_report_summarizes_activity(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = Path(tmpdir) / "workspace"
+            self.module.scaffold(self.config, destination)
+            subprocess.run(
+                [sys.executable, "hub/scripts/run_automation.py", "--root", ".", "--automation-id", "morning-control-panel"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            subprocess.run(
+                [sys.executable, "hub/scripts/run_close.py", "--root", ".", "--latest", "--outcome", "success", "--lesson", "Report test lesson about verifying digests."],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            result = subprocess.run(
+                [sys.executable, "hub/scripts/operator_report.py", "--root", ".", "--write"],
+                cwd=destination,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            report = next((destination / "hub" / "MEMORY" / "reports").glob("operator-report-*.md")).read_text(encoding="utf-8")
+            self.assertIn("Closed runs: **1**", report)
+            self.assertIn("success: 1", report)
+            self.assertIn("lesson: 1", report)
+            self.assertIn("morning-control-panel", report)
+
     def test_memory_search_ranks_matches(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             destination = Path(tmpdir) / "workspace"

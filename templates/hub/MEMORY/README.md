@@ -18,9 +18,11 @@ Use compact files for startup and deeper logs for search:
 
 Generated and runtime folders:
 
-- `indexes/` - work-item, blocker, and memory-health indexes, plus the
+- `indexes/` - work-item, blocker, and memory-health indexes, the
   `memory-health-history.jsonl` trend (created by the refresh scripts;
-  `memory-health.json` appears after the first `memory_health.py --write`).
+  `memory-health.json` appears after the first `memory_health.py --write`),
+  and the tamper-evident `close-chain.jsonl` run ledger (verify with
+  `run_close.py --verify-chain`).
 - `automation-runs/` - run packets, `close.json` outcome records, and
   `invoke.json` agent-invocation results.
 - `self-optimization/` - dated system-review-loop reports.
@@ -28,6 +30,8 @@ Generated and runtime folders:
 - `outbox/` and `outbox-deliveries/` - publisher payloads and delivery
   receipts.
 - `task-drafts/` - collaborator task drafts from `task_draft.py`.
+- `lesson-packs/` - exported portable lesson packs from `lesson_pack.py`.
+- `reports/` - executive operator reports from `operator_report.py`.
 - `feed-digests/` - external feed digest artifacts.
 - `backups/` - backup verification and transfer reports.
 - `opportunities.md` - opportunity planning memo (when that automation runs).

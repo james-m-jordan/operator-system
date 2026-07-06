@@ -178,7 +178,9 @@ Generated helper scripts:
 - `wiki_compile.py` - compiles `hub/wiki/overview.md` from indexes, lessons, and run history.
 - `config_check.py` - validates `hub/config/org.json` types, cron fields, and adapter names.
 - `retention_sweep.py` - retires old runtime artifacts into `archive/retired/` (dry-run by default).
-- `ops.py` - single entry point: `startup`, `doctor`, `run`, `close`, `search`, `review`, `compact`, `sweep`, `wiki`.
+- `lesson_pack.py` - exports promoted lessons as a portable pack; imports packs with fuzzy merge.
+- `operator_report.py` - compiles an executive report: runs, outcomes, lessons, health trend.
+- `ops.py` - single entry point: `startup`, `doctor`, `run`, `close`, `search`, `review`, `compact`, `sweep`, `wiki`, `report`, `pack`, `verify`.
 
 Shortcut for the whole startup refresh:
 
