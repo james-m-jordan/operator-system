@@ -1,3 +1,22 @@
+# Model profiles in 0.7.0
+
+Upgrade using the existing safe template-upgrade procedure below. The new
+`model_profiles.py` helper is template-managed; `hub/config/org.json` remains
+user-owned. Built-in profiles work even when the preserved configuration has no
+profile keys. No existing wrapper or automation switches providers automatically.
+
+Try `python3 hub/scripts/ops.py profiles`, then preview a run with
+`--profile gpt-6-astra --preview` or `--profile claude-opus-5-5 --preview`.
+After configuring a compatible authenticated CLI and task permissions, use
+`--invoke`. Add `runtime.default_profile` or `runtime.automation_profiles` only
+when you want a persistent selection. The CLI override wins over both.
+
+See [MODEL-PROFILES.md](MODEL-PROFILES.md). Existing custom argv wrappers retain
+stdin, working-directory, environment, and closeout behavior. New model profile
+keys are validated before a run is created; invalid settings fail without falling
+back to another model. Invocation timeouts now terminate the worker process group
+on macOS/Linux, preventing ordinary child commands from continuing after timeout.
+
 # Migration Guide
 
 Use this checklist when adapting an existing team, project, or operator

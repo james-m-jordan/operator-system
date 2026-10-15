@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0 — Model/provider profiles
+
+- Add explicit GPT-6 Astra/Codex and Opus 5.5/Claude Code profiles, model IDs,
+  effort validation, per-profile timeouts, and permission settings.
+- Select profiles per run, per automation, or by workspace default while preserving
+  existing custom commands. Reject unknown settings and incompatible combinations.
+- Preview resolved commands without writes or model calls. Check provider CLI
+  flags before invocation; record the selected profile in packet/start/run receipts.
+- Retain evidence-backed closeout for both providers and terminate the worker
+  process group on timeout. Do not infer completion from a model response.
+- Document provider setup and verification limits; add offline CLI integration,
+  routing, failure, timeout, and upgrade regression coverage.
+
 ## 0.6.0 — 2026-10-14
 
 - Streamline the policy and share one automation run contract; use context on

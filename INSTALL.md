@@ -47,7 +47,13 @@ This creates a packet, without executing it. Its printed path contains the run I
 Every automation has named acceptance checks (default `output_verified`), and
 receives one shared run contract. Task prompts contain only task-specific guidance.
 
-Configure `runtime.agent_command` as an argv list for your selected runtime or
+Select a built-in profile with `--profile gpt-6-astra` or
+`--profile claude-opus-5-5`. Run `ops.py profiles --check-runtime` first, and
+review [MODEL-PROFILES.md](MODEL-PROFILES.md) for credentials, permissions, custom
+executables, defaults, and per-automation routes. `--preview` shows the command
+without creating a run or contacting a model.
+
+Alternatively, configure `runtime.agent_command` as an argv list for a custom
 wrapper. It receives packet text on stdin, runs from the workspace directory, and
 gets `OPERATOR_RUN_ID`, `OPERATOR_WORKSPACE`, and `OPERATOR_PACKET` in its environment.
 Arguments containing `{packet}` receive the packet's absolute path. A wrapper must

@@ -14,7 +14,8 @@ python3 scripts/package_release.py --out /tmp/operator-system-release
 3. Review regression coverage for scoped preparation, preserved dirty repos,
    empty/ambiguous packages, opposing lessons, repeated evidence, success without
    closeout, repeated/amended closeout, concurrent delivery, uncertain retries,
-   schedule/DST boundaries, and safe workspace upgrades.
+   schedule/DST boundaries, safe workspace upgrades, profile selection/validation,
+   both provider CLI fixtures, incompatible runtimes, and worker timeout cleanup.
 4. Inspect the release archive and checksum manifest. Confirm it excludes private
    data, Git metadata, bytecode, and temporary test outputs.
 5. Inspect migration guidance and confirm existing memory/admin files are preserved.

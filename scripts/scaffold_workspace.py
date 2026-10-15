@@ -180,7 +180,7 @@ Generated helper scripts:
 - `retention_sweep.py` - retires old runtime artifacts into `archive/retired/` (dry-run by default).
 - `lesson_pack.py` - exports promoted lessons as a portable pack; imports packs with fuzzy merge.
 - `operator_report.py` - compiles an executive report: runs, outcomes, lessons, health trend.
-- `ops.py` - single entry point: `observe`, `prepare`, `startup`, `doctor`, `run`, `close`, `search`, `review`, `compact`, `sweep`, `wiki`, `report`, `pack`, `verify`.
+- `ops.py` - single entry point: `observe`, `prepare`, `startup`, `doctor`, `profiles`, `run`, `close`, `search`, `review`, `compact`, `sweep`, `wiki`, `report`, `pack`, `verify`.
 
 Use `ops.py observe` for read-only checks and `ops.py prepare --repo hub` for scoped work.
 
@@ -196,7 +196,8 @@ python3 hub/scripts/ops.py startup
 - `backup_transfer.py` - writes a dry-run backup transfer plan or explicitly executes local-copy/rsync transfer.
 - `chat_file_fetch.py` - fetches chat-hosted files into ignored local-private storage.
 - `chat_file_intake.py` - copies a captured chat file into a work item and records metadata.
-- `run_automation.py` - creates a dated run packet from one automation prompt/spec.
+- `run_automation.py` - creates run packets, previews profile selection, and invokes configured agents.
+- `model_profiles.py` - resolves Astra/Codex and Opus 5.5/Claude Code profiles; checks local CLI compatibility.
 - `publish_status.py` - writes configured publisher outbox payloads without sending external messages.
 - `deliver_outbox.py` - dry-runs or executes configured outbox delivery adapters.
 - `export_runtime_adapters.py` - exports cron and GitHub Actions scheduler drafts plus publisher notes.

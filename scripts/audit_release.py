@@ -23,6 +23,7 @@ REQUIRED_FILES = [
     "BLUEPRINT.md",
     "INSTALL.md",
     "MIGRATION.md",
+    "MODEL-PROFILES.md",
     "RELEASE-CHECKLIST.md",
     "COMPLETION-MATRIX.md",
     "config/org.example.json",
@@ -40,6 +41,7 @@ REQUIRED_FILES = [
     "templates/hub/automations/automation-manifest.json",
     "templates/work-items/README.md",
     "tests/test_scaffold_workspace.py",
+    "tests/test_model_profiles.py",
 ]
 
 REQUIRED_TEMPLATE_SCRIPTS = [
@@ -58,6 +60,7 @@ REQUIRED_TEMPLATE_SCRIPTS = [
     "memory_index_refresh.py",
     "memory_search.py",
     "operator_common.py",
+    "model_profiles.py",
     "operator_report.py",
     "ops.py",
     "prepare_workspace.py",
@@ -279,7 +282,7 @@ def render_markdown(report: dict[str, Any]) -> str:
             remediation = item.get("remediation") or "Inspect the failed check and update the distribution."
             lines.append(f"- {item['name']}: {remediation}")
     else:
-        lines.append("- No release-audit failures. Provider-specific integrations can still be added as optional adapters.")
+        lines.append("- No release-audit failures. Live provider access and model behavior require validation in the configured runtime.")
     lines.append("")
     lines.append("Regenerate with:")
     lines.append("")

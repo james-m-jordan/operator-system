@@ -4,9 +4,9 @@ A portable workspace for an operator, principal, founder, or small team using
 capable agents. Canonical work packages, explicit authority, durable memory, and
 verifiable run records let work continue across sessions and runtimes.
 
-This is a Python standard-library starter kit for macOS and Linux. It generates
-an organization-specific workspace; it is not a hosted service or a live model
-integration. The current release is **0.6.0**.
+This Python standard-library starter kit generates organization-specific
+workspaces for macOS and Linux, with optional local agent CLI integrations.
+The current release is **0.7.0**.
 
 ## What the kit provides
 
@@ -80,8 +80,24 @@ command argument remains a path substitution for wrappers that need it.
 
 The example command only prints a setup notice. It does not complete a task;
 invoking it returns an incomplete-run exit code. Configure a real runtime before
-using unattended execution. Provider-specific model/effort profiles and automatic
-continuation are separate follow-up work.
+using unattended execution. Built-in profiles invoke GPT-6 Astra through Codex
+and Opus 5.5 through Claude Code, with explicit model IDs and effort:
+
+```bash
+python3 hub/scripts/ops.py profiles
+python3 hub/scripts/ops.py run morning-control-panel --profile gpt-6-astra --preview
+python3 hub/scripts/ops.py run morning-control-panel --profile claude-opus-5-5 --invoke
+```
+
+Selection order is `--profile`, `runtime.automation_profiles[automation-id]`,
+`runtime.default_profile`, then the existing `runtime.agent_command` wrapper.
+A null default preserves existing behavior. Both built-ins start at `medium`;
+choose `low`, `medium`, `high`, `xhigh`, or `max` explicitly for the task.
+`ops.py profiles --check-runtime` checks local CLI compatibility without a model
+request. Packet, start, and invocation records retain the requested profile and
+resolved command. See [MODEL-PROFILES.md](MODEL-PROFILES.md) for setup, permissions,
+routing, and the boundary between offline validation and live model access.
+Automatic continuation remains separate follow-up work.
 
 A worker closes its exact run ID:
 
@@ -148,7 +164,8 @@ python3 scripts/package_release.py --out /tmp/operator-system-release
 ```
 
 The suite covers scaffolding, upgrades, evidence gates, scoped preparation,
-concurrent delivery, interrupted retries, closeout integrity, and schedule health.
+concurrent delivery, interrupted retries, closeout integrity, schedule health,
+and both provider CLI contracts using offline fixtures.
 The release audit checks distributable structure. Neither replaces live model
 behavior evaluations or provider integration tests.
 

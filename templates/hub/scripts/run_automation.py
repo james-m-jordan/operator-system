@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import os
+import signal
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +19,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from operator_common import hub_dir, load_config, read_text, relpath, resolve_root, write_json, write_text, run_contract, workspace_lock
+from model_profiles import check_runtime, resolve_execution, validate_profiles
 
 
 def load_manifest(root: Path, config: dict[str, object]) -> dict[str, object]:
@@ -38,7 +40,8 @@ def format_list(values: object) -> str:
     return ", ".join(str(value) for value in values)
 
 
-def build_run_packet(root: Path, config: dict[str, object], automation: dict[str, object], run_id: str) -> tuple[str, dict[str, object]]:
+def build_run_packet(root: Path, config: dict[str, object], automation: dict[str, object], run_id: str,
+                     execution: dict | None = None) -> tuple[str, dict[str, object]]:
     automation_root = hub_dir(root, config) / "automations"
     prompt_path = automation_root / str(automation["prompt_file"])
     if not prompt_path.exists():
@@ -55,6 +58,12 @@ def build_run_packet(root: Path, config: dict[str, object], automation: dict[str
         "closeout": automation.get("closeout", ""),
         "required_checks": automation.get("required_checks", ["output_verified"]),
     }
+    profile_text = ""
+    if execution:
+        metadata["execution"] = execution
+        profile_text = (f"- Model profile: {execution.get('profile') or 'custom command'}\n"
+                        f"- Requested model: {execution.get('model', 'wrapper-managed')}\n"
+                        f"- Reasoning effort: {execution.get('effort', 'wrapper-managed')}\n")
     text = (
         f"# Automation Run Packet: {automation['title']}\n\n"
         f"- Run ID: `{run_id}`\n"
@@ -64,6 +73,7 @@ def build_run_packet(root: Path, config: dict[str, object], automation: dict[str
         f"- Connectors: {format_list(metadata['connectors'])}\n"
         f"- Expected writes: {format_list(metadata['writes'])}\n"
         f"- Closeout: {metadata['closeout']}\n\n"
+        f"{profile_text}\n"
         f"{run_contract(run_id)}\n"
         f"Required acceptance checks: {format_list(metadata['required_checks'])}.\n\n"
         "## Prompt\n\n"
@@ -72,32 +82,48 @@ def build_run_packet(root: Path, config: dict[str, object], automation: dict[str
     return text, metadata
 
 
-def invoke_agent(root: Path, config: dict[str, object], run_dir: Path, packet_path: Path) -> int:
+def invoke_agent(root: Path, config: dict[str, object], run_dir: Path, packet_path: Path,
+                 execution: dict | None = None) -> int:
     """Run the configured agent command on the packet and record the result."""
-    runtime = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
-    command = runtime.get("agent_command")
-    if isinstance(command, str):
-        command = [command]
-    if not isinstance(command, list) or not command:
-        raise SystemExit(
-            "no runtime.agent_command configured in hub/config/org.json; "
-            'configure an argv wrapper that consumes packet text on stdin and closes OPERATOR_RUN_ID'
-        )
-    resolved = [str(part).replace("{packet}", str(packet_path)) for part in command]
-    timeout = runtime.get("agent_timeout_seconds") if isinstance(runtime.get("agent_timeout_seconds"), int) else 3600
+    meta = json.loads((run_dir / "run.json").read_text())
+    if execution is None:
+        execution = resolve_execution(config, str(meta["automation_id"]), packet_path=packet_path)
+    resolved = execution["command"]
+    timeout = execution["timeout_seconds"]
     started = time.monotonic()
+    runtime_check = check_runtime(execution, root) if execution.get("profile") else {"ok": True}
     try:
         env = dict(os.environ, OPERATOR_RUN_ID=run_dir.name, OPERATOR_WORKSPACE=str(root), OPERATOR_PACKET=str(packet_path))
-        write_json(run_dir / "started.json", {"started_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
-        result = subprocess.run(resolved, cwd=root, input=read_text(packet_path), env=env,
-                                capture_output=True, text=True, check=False, timeout=timeout)
-        returncode, output = result.returncode, (result.stdout + result.stderr)[-4000:]
-    except FileNotFoundError:
-        returncode, output = 127, f"{resolved[0]} not found"
-    except subprocess.TimeoutExpired:
-        returncode, output = 124, f"agent command timed out after {timeout}s"
+        env.update(OPERATOR_MODEL_PROFILE=execution.get("profile") or "",
+                   OPERATOR_PROVIDER=execution["provider"], OPERATOR_MODEL=execution.get("model", ""),
+                   OPERATOR_REASONING_EFFORT=execution.get("effort", ""))
+        if not runtime_check["ok"]:
+            returncode, output = 2, runtime_check["detail"]
+        else:
+            write_json(run_dir / "started.json", {"started_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                                  "execution": execution})
+            with subprocess.Popen(resolved, cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE, text=True, env=env, start_new_session=True) as process:
+                try:
+                    stdout, stderr = process.communicate(read_text(packet_path), timeout=timeout)
+                    returncode, output = process.returncode, (stdout + stderr)[-4000:]
+                except subprocess.TimeoutExpired:
+                    # Stop the worker's descendants too: they must not close a timed-out run later.
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        process.communicate(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        # A deliberately detached child can retain pipes. Do not wait forever.
+                        process.stdout.close()
+                        process.stderr.close()
+                    returncode, output = 124, f"agent command timed out after {timeout}s"
+    except OSError as exc:
+        returncode, output = 127, f"cannot launch {resolved[0]}: {exc.strerror}"
     completed = False
-    reason = "agent process failed"
+    reason = runtime_check.get("detail", "agent process failed") if not runtime_check["ok"] else "agent process failed"
     if returncode == 0:
         from run_close import validate_close, read_chain, chain_path
         try:
@@ -118,6 +144,8 @@ def invoke_agent(root: Path, config: dict[str, object], run_dir: Path, packet_pa
         {
             "invoked_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "command": resolved,
+            "execution": execution,
+            "runtime_check": runtime_check,
             "returncode": returncode,
             "runner_exit": runner_exit,
             "completed": completed,
@@ -136,29 +164,47 @@ def main() -> int:
     parser.add_argument("--root", default="", help="Workspace root.")
     parser.add_argument("--automation-id", required=True, help="Automation ID from the manifest.")
     parser.add_argument("--print-prompt", action="store_true", help="Print run packet instead of writing it.")
-    parser.add_argument("--invoke", action="store_true", help="Run the configured runtime.agent_command on the packet after writing it.")
+    parser.add_argument("--invoke", action="store_true", help="Run the selected model profile or custom agent command after writing the packet.")
+    parser.add_argument("--profile", help="Model profile override (before automation routing and default_profile).")
+    parser.add_argument("--preview", action="store_true", help="Print resolved invocation JSON without creating a packet or starting an agent.")
     args = parser.parse_args()
+    if args.invoke and (args.preview or args.print_prompt):
+        parser.error("--invoke cannot be combined with --preview or --print-prompt")
+    if args.preview and args.print_prompt:
+        parser.error("choose --preview or --print-prompt")
 
     root = resolve_root(args.root)
     config = load_config(root)
     manifest = load_manifest(root, config)
     automation = find_automation(manifest, args.automation_id)
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + "-" + args.automation_id + "-" + uuid.uuid4().hex[:8]
-    packet_text, metadata = build_run_packet(root, config, automation, run_id)
+    runtime = config.get("runtime", {})
+    errors = validate_profiles(config)
+    if errors:
+        parser.error("; ".join(errors))
+    run_root = root / str(runtime.get("run_root", "hub/MEMORY/automation-runs"))
+    run_dir = run_root / run_id
+    execution = None
+    if args.invoke or args.preview or args.profile is not None or runtime.get("agent_command") or runtime.get("default_profile") or runtime.get("automation_profiles", {}).get(args.automation_id):
+        try:
+            execution = resolve_execution(config, args.automation_id, args.profile, run_dir / "run.md")
+        except ValueError as exc:
+            parser.error(str(exc))
+    if args.preview:
+        print(json.dumps(execution, indent=2))
+        return 0
+    packet_text, metadata = build_run_packet(root, config, automation, run_id, execution)
     if args.print_prompt:
         print(packet_text, end="")
         return 0
 
-    runtime = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
-    run_root = root / str(runtime.get("run_root", "hub/MEMORY/automation-runs"))
-    run_dir = run_root / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     write_text(run_dir / "run.md", packet_text)
     write_json(run_dir / "run.json", metadata)
     print(relpath(root, run_dir / "run.md"))
     if args.invoke:
         with workspace_lock(root, config, name="automation-" + str(automation["id"])):
-            return invoke_agent(root, config, run_dir, run_dir / "run.md")
+            return invoke_agent(root, config, run_dir, run_dir / "run.md", execution)
     return 0
 
 

@@ -1,7 +1,7 @@
 # Operator System Completion Matrix
 
 - Audit result: **PASS**
-- Checks passed: 111
+- Checks passed: 114
 - Checks failed: 0
 
 ## Matrix
@@ -13,6 +13,7 @@
 | required file: BLUEPRINT.md | PASS | `BLUEPRINT.md` |
 | required file: INSTALL.md | PASS | `INSTALL.md` |
 | required file: MIGRATION.md | PASS | `MIGRATION.md` |
+| required file: MODEL-PROFILES.md | PASS | `MODEL-PROFILES.md` |
 | required file: RELEASE-CHECKLIST.md | PASS | `RELEASE-CHECKLIST.md` |
 | required file: COMPLETION-MATRIX.md | PASS | `COMPLETION-MATRIX.md` |
 | required file: config/org.example.json | PASS | `config/org.example.json` |
@@ -30,6 +31,7 @@
 | required file: templates/hub/automations/automation-manifest.json | PASS | `templates/hub/automations/automation-manifest.json` |
 | required file: templates/work-items/README.md | PASS | `templates/work-items/README.md` |
 | required file: tests/test_scaffold_workspace.py | PASS | `tests/test_scaffold_workspace.py` |
+| required file: tests/test_model_profiles.py | PASS | `tests/test_model_profiles.py` |
 | generated helper script: backup_transfer.py | PASS | `templates/hub/scripts/backup_transfer.py` |
 | generated helper script: backup_verify.py | PASS | `templates/hub/scripts/backup_verify.py` |
 | generated helper script: chat_file_fetch.py | PASS | `templates/hub/scripts/chat_file_fetch.py` |
@@ -45,6 +47,7 @@
 | generated helper script: memory_index_refresh.py | PASS | `templates/hub/scripts/memory_index_refresh.py` |
 | generated helper script: memory_search.py | PASS | `templates/hub/scripts/memory_search.py` |
 | generated helper script: operator_common.py | PASS | `templates/hub/scripts/operator_common.py` |
+| generated helper script: model_profiles.py | PASS | `templates/hub/scripts/model_profiles.py` |
 | generated helper script: operator_report.py | PASS | `templates/hub/scripts/operator_report.py` |
 | generated helper script: ops.py | PASS | `templates/hub/scripts/ops.py` |
 | generated helper script: prepare_workspace.py | PASS | `templates/hub/scripts/prepare_workspace.py` |
@@ -114,7 +117,7 @@
 | release archive builds | PASS | `operator-system-starter-audit.tar.gz` |
 | release manifest exists | PASS | `operator-system-starter-audit.manifest.json` |
 | release archive exists | PASS | `operator-system-starter-audit.tar.gz` |
-| release manifest has expected breadth | PASS | `file_count=69` |
+| release manifest has expected breadth | PASS | `file_count=72` |
 | release includes chat fetch helper | PASS | `manifest files` |
 | release includes audit helper | PASS | `manifest files` |
 | release includes license | PASS | `manifest files` |
@@ -122,7 +125,7 @@
 
 ## Remaining Work
 
-- No release-audit failures. Provider-specific integrations can still be added as optional adapters.
+- No release-audit failures. Live provider access and model behavior require validation in the configured runtime.
 
 Regenerate with:
 

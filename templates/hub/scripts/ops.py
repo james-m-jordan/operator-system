@@ -7,6 +7,7 @@ Commands:
   startup            broad maintenance: config check + preflight + sync (dry) + index + digest + health
   doctor             read-only health review: config check, health --strict, compact plan
   run <id>           create a run packet (add --invoke to execute the agent command)
+  profiles           list model/provider profiles (add --check-runtime to check local CLI flags)
   close ...          record a run outcome (args pass through to run_close.py)
   search <terms...>  ranked search across memory, wiki, and knowledge base
   review             create a system-review-loop packet (add --invoke to execute)
@@ -54,6 +55,8 @@ def main() -> int:
         return run_script("config_check.py", *root_args, *rest)
     if command == "prepare":
         return run_script("prepare_workspace.py", *root_args, *rest)
+    if command == "profiles":
+        return run_script("model_profiles.py", *root_args, *rest)
 
     if command == "startup":
         return run_chain(

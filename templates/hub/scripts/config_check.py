@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from schedule_health import parse_cron
+from model_profiles import validate_profiles
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -31,6 +32,7 @@ KNOWN_TRANSFER_METHODS = {"local-copy", "rsync"}
 
 def check_config(config: dict[str, object], raw: dict[str, object]) -> tuple[list[str], list[str]]:
     errors: list[str] = []
+    errors.extend(validate_profiles(config))
     warnings: list[str] = []
 
     for key in ("org_name", "workspace_name", "hub_root", "work_item_root", "knowledge_base_root"):

@@ -69,10 +69,16 @@ Health separates packet, start, close, and successful-completion timestamps. Num
 cron schedules use their IANA timezone and grace period, rather than an inferred
 multi-day gap. Explicit legacy max-gap overrides remain supported.
 
-Scheduler exports are draft packet generators. Native provider profiles, live
-scheduler execution bindings, bounded continuation, and comparative model evals
-remain separate work. No model capabilities or speed improvements are claimed by
-this release's fixture tests.
+Model profiles select GPT-6 Astra through Codex CLI or Opus 5.5 through Claude
+Code. Explicit run overrides precede per-automation routes and workspace defaults;
+the existing command wrapper remains the fallback when no profile is selected.
+Profile validation and local CLI checks precede invocation. The requested profile
+is retained with the packet and invocation receipt; evidence-backed closeout still
+determines completion. See [MODEL-PROFILES.md](MODEL-PROFILES.md).
+
+Scheduler exports remain draft packet generators. Live scheduler execution
+bindings, bounded continuation, and comparative model evals remain separate work.
+No model quality or speed improvements are claimed by the fixture tests.
 
 ## Distribution
 

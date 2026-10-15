@@ -127,6 +127,26 @@
           ]
         }
       }
+    },
+    "default_profile": null,
+    "automation_profiles": {},
+    "model_profiles": {
+      "gpt-6-astra": {
+        "provider": "openai",
+        "model": "gpt-6-astra",
+        "effort": "medium",
+        "executable": "codex",
+        "timeout_seconds": 3600,
+        "sandbox": "workspace-write"
+      },
+      "claude-opus-5-5": {
+        "provider": "anthropic",
+        "model": "claude-opus-5-5",
+        "effort": "medium",
+        "executable": "claude",
+        "timeout_seconds": 3600,
+        "permission_mode": "dontAsk"
+      }
     }
   },
   "automation_schedules": {
