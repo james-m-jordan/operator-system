@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Export promoted lessons as a portable pack, or import a pack into this workspace.
+"""Export reviewed lessons as a portable pack, or import a reviewed pack.
 
 Packs carry rules, not data: evidence paths are stripped on export unless
 --keep-evidence is passed, and rules are expected to be organization-neutral
 (the LESSONS.md format already requires this). Imports are dry-run by default
-and merge through the same fuzzy dedupe used by lesson_add.py, so a rule the
-workspace already learned is re-confirmed (hits +1) instead of duplicated.
+and use exact matching. Near matches require review; identical evidence does
+not increase confirmation counts. Exported rule text is not automatically sanitized.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -20,7 +21,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from lesson_add import MATCH_THRESHOLD, add_lesson, similarity, split_lessons
+from lesson_add import MATCH_THRESHOLD, add_lesson, similarity, split_lessons, normalize
 from operator_common import load_config, memory_dir, read_text, relpath, resolve_root, write_json
 
 PACK_FORMAT = 1
@@ -60,7 +61,7 @@ def plan_import(root: Path, config: dict[str, object], pack: dict[str, object]) 
         rule = str(lesson.get("rule", "")).strip()
         if not rule:
             continue
-        if any(similarity(str(entry["rule"]), rule) >= MATCH_THRESHOLD for entry in entries):
+        if any(normalize(str(entry["rule"])) == normalize(rule) for entry in entries):
             known.append(lesson)
         else:
             new.append(lesson)
@@ -103,13 +104,13 @@ def main() -> int:
     pack = json.loads(pack_path.read_text(encoding="utf-8"))
     if pack.get("format") != PACK_FORMAT:
         raise SystemExit(f"unsupported pack format: {pack.get('format')!r} (expected {PACK_FORMAT})")
-    provenance = f"pack:{pack.get('name', pack_path.stem)}"
+    provenance = f"pack:{pack.get('name', pack_path.stem)}:{hashlib.sha256(pack_path.read_bytes()).hexdigest()[:16]}"
     new, known = plan_import(root, config, pack)
 
     print(f"# Lesson Pack Import Plan: {pack.get('name')} ({pack.get('source', 'anonymous')})")
     print(f"- Pack lessons: {len(pack.get('lessons', []))}")
     print(f"- New to this workspace: {len(new)}")
-    print(f"- Already known (will re-confirm, hits +1): {len(known)}")
+    print(f"- Already known (repeated evidence does not increase hits): {len(known)}")
     for lesson in new[:20]:
         print(f"- add: {lesson['rule']}")
     if len(new) > 20:
@@ -120,7 +121,7 @@ def main() -> int:
 
     for lesson in new + known:
         print(add_lesson(root, config, str(lesson["rule"]), provenance))
-    print(f"Merged {len(new)} new and re-confirmed {len(known)} existing lessons from {provenance}.")
+    print(f"Merged {len(new)} new and processed {len(known)} existing lessons from {provenance}.")
     return 0
 
 

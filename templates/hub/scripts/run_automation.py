@@ -8,6 +8,8 @@ import json
 import subprocess
 import sys
 import time
+import os
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,20 +17,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from operator_common import hub_dir, load_config, memory_dir, read_text, relpath, resolve_root, write_json, write_text
-
-
-def active_lessons(root: Path, config: dict[str, object]) -> list[str]:
-    """Return the Active Lessons bullets from hub/MEMORY/LESSONS.md."""
-    lessons = []
-    in_section = False
-    for line in read_text(memory_dir(root, config) / "LESSONS.md").splitlines():
-        if line.startswith("## "):
-            in_section = line.strip() == "## Active Lessons"
-            continue
-        if in_section and line.startswith("- "):
-            lessons.append(line)
-    return lessons
+from operator_common import hub_dir, load_config, read_text, relpath, resolve_root, write_json, write_text, run_contract, workspace_lock
 
 
 def load_manifest(root: Path, config: dict[str, object]) -> dict[str, object]:
@@ -64,9 +53,8 @@ def build_run_packet(root: Path, config: dict[str, object], automation: dict[str
         "connectors": automation.get("connectors", []),
         "writes": automation.get("writes", []),
         "closeout": automation.get("closeout", ""),
+        "required_checks": automation.get("required_checks", ["output_verified"]),
     }
-    lessons = active_lessons(root, config)
-    lessons_block = "\n".join(lessons) if lessons else "- No active lessons recorded yet."
     text = (
         f"# Automation Run Packet: {automation['title']}\n\n"
         f"- Run ID: `{run_id}`\n"
@@ -76,31 +64,8 @@ def build_run_packet(root: Path, config: dict[str, object], automation: dict[str
         f"- Connectors: {format_list(metadata['connectors'])}\n"
         f"- Expected writes: {format_list(metadata['writes'])}\n"
         f"- Closeout: {metadata['closeout']}\n\n"
-        "## Required Startup\n\n"
-        "```bash\n"
-        "python3 hub/scripts/preflight_capabilities.py --root .\n"
-        "python3 hub/scripts/sync_workspace.py --root .\n"
-        "python3 hub/scripts/memory_index_refresh.py --root . --write --validate\n"
-        "python3 hub/scripts/state_digest.py --root .\n"
-        "python3 hub/scripts/memory_health.py --root . --write\n"
-        "```\n\n"
-        "## Active Lessons\n\n"
-        "Apply these standing lessons from `hub/MEMORY/LESSONS.md` during the run:\n\n"
-        f"{lessons_block}\n\n"
-        "## Required Closeout\n\n"
-        "1. Record the run in `hub/MEMORY/agent-action-log.md`.\n"
-        "2. Leave one improvement: add or re-confirm a lesson in\n"
-        "   `hub/MEMORY/LESSONS.md`, correct one wrong memory entry, or prune one\n"
-        "   stale entry.\n"
-        "3. Refresh memory health and fix any budget violation you introduced:\n\n"
-        "```bash\n"
-        "python3 hub/scripts/memory_health.py --root . --write\n"
-        "```\n\n"
-        "4. Close the run record so the outcome and improvement are tracked:\n\n"
-        "```bash\n"
-        f"python3 hub/scripts/run_close.py --root . --run-id {run_id} "
-        "--outcome success --improvement lesson --improvement-ref hub/MEMORY/LESSONS.md\n"
-        "```\n\n"
+        f"{run_contract(run_id)}\n"
+        f"Required acceptance checks: {format_list(metadata['required_checks'])}.\n\n"
         "## Prompt\n\n"
         f"{prompt.rstrip()}\n"
     )
@@ -116,32 +81,54 @@ def invoke_agent(root: Path, config: dict[str, object], run_dir: Path, packet_pa
     if not isinstance(command, list) or not command:
         raise SystemExit(
             "no runtime.agent_command configured in hub/config/org.json; "
-            'set e.g. ["claude", "-p", "{packet}"] to run packets with an agent CLI'
+            'configure an argv wrapper that consumes packet text on stdin and closes OPERATOR_RUN_ID'
         )
     resolved = [str(part).replace("{packet}", str(packet_path)) for part in command]
     timeout = runtime.get("agent_timeout_seconds") if isinstance(runtime.get("agent_timeout_seconds"), int) else 3600
     started = time.monotonic()
     try:
-        result = subprocess.run(resolved, capture_output=True, text=True, check=False, timeout=timeout)
+        env = dict(os.environ, OPERATOR_RUN_ID=run_dir.name, OPERATOR_WORKSPACE=str(root), OPERATOR_PACKET=str(packet_path))
+        write_json(run_dir / "started.json", {"started_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+        result = subprocess.run(resolved, cwd=root, input=read_text(packet_path), env=env,
+                                capture_output=True, text=True, check=False, timeout=timeout)
         returncode, output = result.returncode, (result.stdout + result.stderr)[-4000:]
     except FileNotFoundError:
         returncode, output = 127, f"{resolved[0]} not found"
     except subprocess.TimeoutExpired:
         returncode, output = 124, f"agent command timed out after {timeout}s"
+    completed = False
+    reason = "agent process failed"
+    if returncode == 0:
+        from run_close import validate_close, read_chain, chain_path
+        try:
+            close = json.loads((run_dir / "close.json").read_text())
+            meta = json.loads((run_dir / "run.json").read_text())
+            validate_close(root, meta, close)
+            receipts = read_chain(chain_path(root, config))
+            chained = next((e for e in reversed(receipts) if e["run_id"] == meta["run_id"]), None)
+            if chained != close:
+                raise ValueError("closeout does not match its chained receipt")
+            completed = close["outcome"] in {"success", "no_op"}
+            reason = "verified completion" if completed else f"run ended {close['outcome']}"
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            reason = f"missing or invalid closeout: {exc}"
+    runner_exit = returncode if returncode else (0 if completed else 3)
     write_json(
         run_dir / "invoke.json",
         {
             "invoked_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "command": resolved,
             "returncode": returncode,
+            "runner_exit": runner_exit,
+            "completed": completed,
+            "completion_detail": reason,
             "duration_seconds": round(time.monotonic() - started, 1),
             "output_tail": output,
         },
     )
     print(f"Agent invocation exited {returncode}; see {relpath(root, run_dir / 'invoke.json')}")
-    if returncode == 0 and not (run_dir / "close.json").exists():
-        print("Reminder: close the run with hub/scripts/run_close.py if the agent did not.")
-    return returncode
+    print(reason)
+    return runner_exit
 
 
 def main() -> int:
@@ -156,7 +143,7 @@ def main() -> int:
     config = load_config(root)
     manifest = load_manifest(root, config)
     automation = find_automation(manifest, args.automation_id)
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + args.automation_id
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + "-" + args.automation_id + "-" + uuid.uuid4().hex[:8]
     packet_text, metadata = build_run_packet(root, config, automation, run_id)
     if args.print_prompt:
         print(packet_text, end="")
@@ -165,11 +152,13 @@ def main() -> int:
     runtime = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
     run_root = root / str(runtime.get("run_root", "hub/MEMORY/automation-runs"))
     run_dir = run_root / run_id
+    run_dir.mkdir(parents=True, exist_ok=False)
     write_text(run_dir / "run.md", packet_text)
     write_json(run_dir / "run.json", metadata)
     print(relpath(root, run_dir / "run.md"))
     if args.invoke:
-        return invoke_agent(root, config, run_dir, run_dir / "run.md")
+        with workspace_lock(root, config, name="automation-" + str(automation["id"])):
+            return invoke_agent(root, config, run_dir, run_dir / "run.md")
     return 0
 
 

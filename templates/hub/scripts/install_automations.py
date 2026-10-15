@@ -12,7 +12,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from operator_common import RATCHET_BLOCK, hub_dir, load_config, read_text, relpath, resolve_root, write_json, write_text
+from operator_common import run_contract, hub_dir, load_config, read_text, relpath, resolve_root, write_json, write_text
 
 
 def load_manifest(root: Path, config: dict[str, object]) -> dict[str, object]:
@@ -38,7 +38,7 @@ def install(root: Path, destination: Path, selected: set[str] | None = None) -> 
         target_dir.mkdir(parents=True, exist_ok=True)
         spec = dict(automation)
         spec["prompt"] = prompt_text
-        spec["standard_ratchet"] = RATCHET_BLOCK
+        spec["run_contract"] = run_contract()
         spec["source_manifest"] = relpath(root, automation_root / "automation-manifest.json")
         write_json(target_dir / "automation.json", spec)
         write_text(
@@ -49,7 +49,7 @@ def install(root: Path, destination: Path, selected: set[str] | None = None) -> 
             f"- Connectors: {', '.join(automation.get('connectors', []))}\n"
             f"- Closeout: {automation.get('closeout', '')}\n\n"
             f"## Prompt\n\n{prompt_text.rstrip()}\n\n"
-            f"{RATCHET_BLOCK}",
+            f"{run_contract()}",
         )
         written.extend([target_dir / "automation.json", target_dir / "automation.md"])
     return written

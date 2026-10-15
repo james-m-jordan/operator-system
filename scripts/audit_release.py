@@ -60,6 +60,8 @@ REQUIRED_TEMPLATE_SCRIPTS = [
     "operator_common.py",
     "operator_report.py",
     "ops.py",
+    "prepare_workspace.py",
+    "schedule_health.py",
     "package_gate.py",
     "preflight_capabilities.py",
     "publish_status.py",

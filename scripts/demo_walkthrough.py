@@ -9,6 +9,7 @@ run closeout, wiki synthesis, and the health trend.
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 import tempfile
@@ -39,15 +40,27 @@ def main() -> int:
         KIT_ROOT,
     )
     step("Startup chain (config check, preflight, sync, index, digest, health)", [python, "hub/scripts/ops.py", "startup"], out)
-    step("Create a run packet and execute it with the configured agent command", [python, "hub/scripts/ops.py", "run", "morning-control-panel", "--invoke"], out)
-    step(
-        "Close the run, recording a lesson (deduped with hit counts)",
-        [python, "hub/scripts/ops.py", "close", "--latest", "--outcome", "success", "--lesson", "Demo: verify connector health before scheduled sends."],
-        out,
+    config_path = out / "hub/config/org.json"
+    config = json.loads(config_path.read_text())
+    fixture = out / "local-private/demo-agent.py"
+    fixture.write_text(
+        "import os, subprocess, sys\n"
+        "from pathlib import Path\n"
+        "packet = sys.stdin.read()\n"
+        "assert 'Run Contract' in packet\n"
+        "output = Path('local-private/demo-result.md')\n"
+        "output.write_text('Offline fixture completed; no model or external delivery used.\\n')\n"
+        "subprocess.run([sys.executable, 'hub/scripts/run_close.py', '--run-id', os.environ['OPERATOR_RUN_ID'], "
+        "'--outcome', 'success', '--evidence', str(output), '--check', 'output_verified=pass'], check=True)\n"
     )
+    config['runtime']['agent_command'] = [python, str(fixture)]
+    config_path.write_text(json.dumps(config, indent=2) + "\n")
+    step("Invoke an offline fixture agent and verify its evidence-backed closeout",
+         [python, "hub/scripts/ops.py", "run", "morning-control-panel", "--invoke"], out)
+    step("Verify close receipts", [python, "hub/scripts/ops.py", "verify"], out)
     step("Compile the synthesis wiki", [python, "hub/scripts/ops.py", "wiki"], out)
     step("Refresh health so the trend records this run", [python, "hub/scripts/memory_health.py", "--root", ".", "--write"], out)
-    step("Search memory for the lesson we just recorded", [python, "hub/scripts/ops.py", "search", "connector", "health"], out)
+    step("Search relevant memory", [python, "hub/scripts/ops.py", "search", "workspace"], out)
     step("Doctor: strict health gate + rotation and retention plans", [python, "hub/scripts/ops.py", "doctor"], out)
 
     print("\n=== Demo complete")

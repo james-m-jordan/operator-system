@@ -120,3 +120,43 @@ Use `file_sources.chat.providers` to map each existing chat platform to
 6. Install a scheduler only after the generated cron or workflow file has been
    reviewed by the operator.
 7. Enable live connector publishers after dry-run outbox behavior is clean.
+
+## Upgrading to 0.6.0
+
+First inspect the dry-run plan from `scripts/upgrade_workspace.py --workspace
+<path>`. Apply unchanged templates with `--execute`; resolve reported conflicts
+without replacing local decisions or evidence. Do not point this at an unscaffolded
+production workspace and assume its policy has migrated.
+
+- The new policy takes precedence over older template instructions requiring all
+  context on every run, one improvement per run, promotion at three hits, or
+  pruning unused lessons. User-authored decisions retain their authority.
+- `hub/MEMORY/` and `hub/admin-docs/` remain user-owned and are never overwritten.
+  Review retained LANDMARKS/LESSONS for those obsolete template rules. Historical
+  entries and counts are evidence of prior bookkeeping, not verified learning.
+- `runs_without_improvement_max` is deprecated and ignored; remove it when editing
+  config. `improvement=none` is healthy, and complete quiet scans use `no_op`.
+- Use `ops observe` for read-only configuration checks and `ops prepare --repo ...`
+  for selected dependencies. Full startup is for broad maintenance. Automatic
+  stashing has been removed, including explicit sync execution.
+- Success/no-op closeout now requires `--evidence` and passing `--check name=pass`
+  values matching packet requirements. Update custom wrappers and prompts before
+  unattended execution. Use explicit run IDs; ambiguous `--latest` is rejected.
+- `--invoke` delivers packet text on stdin and sets the working directory. The
+  old `{packet}` path substitution remains supported. Exit zero without a valid
+  chained closeout is incomplete (runner code 3), including the example echo stub.
+- Existing chain records remain readable. New receipts bind all closeout fields;
+  repeated closes are idempotent and corrections require explicit amendments.
+- Delivery retry state is stored separately from retained receipts. Historical
+  executed receipts prevent silent resend. Uncertain sends need destination
+  reconciliation, not automatic expiration. Preserve `outbox-delivery-state/`.
+- The default package gate now checks actual file coverage. Unsupported maps or
+  missing meanings need conversion/review; structure-only success never establishes
+  readiness for analysis. Index status is `ready_for_review` after the generic gate.
+- Schedule health now uses actual timezone-aware occurrences and successful
+  completion. Historical success records without checks/evidence do not establish
+  current verified health. Explicit `max_gap_hours` overrides remain supported.
+
+Regenerate installed automation bundles and scheduler drafts after upgrading;
+review them before deployment. Test a quiet scan, a complete fixture, an incomplete
+package, an interrupted run, and a duplicate delivery against a local test sink.

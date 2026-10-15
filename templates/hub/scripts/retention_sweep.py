@@ -49,7 +49,13 @@ def artifact_date(path: Path) -> date:
 def collect_expired(mem: Path, targets: list[str], cutoff: date) -> list[Path]:
     expired = []
     for target in targets:
-        target_dir = mem / target
+        # Receipt identity, reservations, and live locks outlive ordinary artifacts.
+        target_dir = (mem / target).resolve()
+        protected = [(mem / name).resolve() for name in ("outbox-delivery-state", "indexes", ".locks")]
+        if not target_dir.is_relative_to(mem.resolve()) or any(
+            target_dir == item or target_dir.is_relative_to(item) or item.is_relative_to(target_dir) for item in protected
+        ):
+            continue
         if not target_dir.exists():
             continue
         for child in sorted(target_dir.iterdir()):
@@ -60,6 +66,8 @@ def collect_expired(mem: Path, targets: list[str], cutoff: date) -> list[Path]:
                 for grandchild in sorted(child.iterdir()):
                     if artifact_date(grandchild) < cutoff:
                         expired.append(grandchild)
+                continue
+            if target == "automation-runs" and (child / "started.json").exists() and not (child / "close.json").exists():
                 continue
             if artifact_date(child) < cutoff:
                 expired.append(child)

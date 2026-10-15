@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Fetch nested git repositories and write a sync-health report.
 
-Dry-run by default: fetches and reports what needs a pull or stash-sync.
-Pass --execute to fast-forward clean repos and stash-sync dirty ones.
+Dry-run by default: fetches and reports what needs a pull or explicit reconciliation.
+Pass --execute to fast-forward clean repos; dirty behind repos remain blocked.
 """
 
 from __future__ import annotations
@@ -93,20 +93,6 @@ def upstream_parts(upstream: str) -> tuple[str, str]:
     return upstream.split("/", 1)
 
 
-def stash_pull_pop(repo: Path, remote: str, branch: str) -> tuple[bool, str]:
-    message = f"operator-auto-sync-{date.today().isoformat()}"
-    rc, _, err = run_git(repo, ["stash", "push", "--include-untracked", "-m", message])
-    if rc != 0:
-        return False, err or "Failed to stash local changes."
-    rc, _, err = run_git(repo, ["pull", "--ff-only", remote, branch])
-    if rc != 0:
-        return False, err or "Fast-forward pull failed after stashing."
-    rc, _, err = run_git(repo, ["stash", "pop"])
-    if rc != 0:
-        return False, err or "Stash pop reported conflicts."
-    return True, "Stashed local changes, fast-forwarded, and reapplied the stash."
-
-
 def status_for_repo(root: Path, repo: Path, execute: bool) -> RepoStatus:
     repo_rel = relpath(root, repo)
     _, branch, _ = run_git(repo, ["rev-parse", "--abbrev-ref", "HEAD"])
@@ -131,11 +117,12 @@ def status_for_repo(root: Path, repo: Path, execute: bool) -> RepoStatus:
         if not execute:
             return RepoStatus(
                 repo_rel, branch, upstream, ahead, behind, True, "needs_stash_sync",
-                "Dry run: local changes on a behind branch. Re-run with --execute to stash, fast-forward, and reapply.",
+                "Local changes on a behind branch; reconcile explicitly. No automatic stashing.",
                 samples, stash_count(repo),
             )
-        ok, detail = stash_pull_pop(repo, remote, remote_branch)
-        return RepoStatus(repo_rel, branch, upstream, 0 if ok else ahead, 0 if ok else behind, True, "synced_dirty" if ok else "reapply_failed", detail, samples, stash_count(repo))
+        return RepoStatus(repo_rel, branch, upstream, ahead, behind, True, "needs_stash_sync",
+                          "Local changes preserved. Reconcile this behind branch explicitly; automatic stashing is disabled.",
+                          samples, stash_count(repo))
     if dirty:
         return RepoStatus(repo_rel, branch, upstream, ahead, behind, True, "dirty_local_only", "Local worktree is dirty, but upstream is already merged.", samples, stash_count(repo))
     if ahead:
@@ -207,7 +194,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default="", help="Workspace root.")
     parser.add_argument("--output", default="", help="Report path. Defaults to hub/MEMORY/repo-syncs/repo-sync-YYYY-MM-DD.md.")
-    parser.add_argument("--execute", action="store_true", help="Fast-forward clean repos and stash-sync dirty ones. Without this, fetch and report only.")
+    parser.add_argument("--execute", action="store_true", help="Fast-forward clean repos only. Dirty behind repos remain blocked.")
+    parser.add_argument("--strict", action="store_true", help="Fail if a repo is stale, divergent, or could not be checked.")
     args = parser.parse_args()
 
     root = resolve_root(args.root)
@@ -221,7 +209,8 @@ def main() -> int:
     print(output)
     if not args.execute and any(item.action in ("needs_pull", "needs_stash_sync") for item in results):
         print("Dry run: some repos need syncing. Re-run with --execute to apply.")
-    return 0
+    unsafe = {"needs_pull", "needs_stash_sync", "diverged", "fetch_failed", "status_failed", "pull_failed", "reapply_failed"}
+    return 1 if (args.strict or args.execute) and any(item.action in unsafe for item in results) else 0
 
 
 if __name__ == "__main__":

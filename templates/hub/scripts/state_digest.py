@@ -57,17 +57,9 @@ def automation_heartbeat(root: Path, config: dict[str, object]) -> list[str]:
     statuses = heartbeat_status(root, config)
     lines = []
     for item in statuses:
-        if item["status"] == "never-run":
-            lines.append(f"- `{item['id']}`: no runs recorded yet (expected every ~{item['max_gap_hours']}h).")
-        elif item["status"] == "overdue":
-            lines.append(
-                f"- `{item['id']}`: OVERDUE - last run {item['last_run']}, {item['age_hours']:.0f}h ago "
-                f"(expected every ~{item['max_gap_hours']}h)."
-            )
-        elif item["status"] == "unreadable":
-            lines.append(f"- `{item['id']}`: last run timestamp unreadable ({item['last_run']}).")
-        else:
-            lines.append(f"- `{item['id']}`: ok - last run {item['last_run']}.")
+        label = "OVERDUE" if item["status"] == "overdue" else item["status"]
+        lines.append(f"- `{item['id']}`: {label}; last successful completion: {item['last_run'] or 'none'}; "
+                     f"expected by: {item['expected_utc']}.")
     return lines or ["- No enabled automation schedules."]
 
 

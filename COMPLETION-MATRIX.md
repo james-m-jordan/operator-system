@@ -1,7 +1,7 @@
 # Operator System Completion Matrix
 
 - Audit result: **PASS**
-- Checks passed: 109
+- Checks passed: 111
 - Checks failed: 0
 
 ## Matrix
@@ -47,6 +47,8 @@
 | generated helper script: operator_common.py | PASS | `templates/hub/scripts/operator_common.py` |
 | generated helper script: operator_report.py | PASS | `templates/hub/scripts/operator_report.py` |
 | generated helper script: ops.py | PASS | `templates/hub/scripts/ops.py` |
+| generated helper script: prepare_workspace.py | PASS | `templates/hub/scripts/prepare_workspace.py` |
+| generated helper script: schedule_health.py | PASS | `templates/hub/scripts/schedule_health.py` |
 | generated helper script: package_gate.py | PASS | `templates/hub/scripts/package_gate.py` |
 | generated helper script: preflight_capabilities.py | PASS | `templates/hub/scripts/preflight_capabilities.py` |
 | generated helper script: publish_status.py | PASS | `templates/hub/scripts/publish_status.py` |
@@ -112,7 +114,7 @@
 | release archive builds | PASS | `operator-system-starter-audit.tar.gz` |
 | release manifest exists | PASS | `operator-system-starter-audit.manifest.json` |
 | release archive exists | PASS | `operator-system-starter-audit.tar.gz` |
-| release manifest has expected breadth | PASS | `file_count=66` |
+| release manifest has expected breadth | PASS | `file_count=69` |
 | release includes chat fetch helper | PASS | `manifest files` |
 | release includes audit helper | PASS | `manifest files` |
 | release includes license | PASS | `manifest files` |

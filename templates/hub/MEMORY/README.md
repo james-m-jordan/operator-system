@@ -7,8 +7,7 @@ Use compact files for startup and deeper logs for search:
 - `state-digest.md` - current-state working set.
 - `capabilities.json` - connector and tool health flags.
 - `LANDMARKS.md` - compact current-behavior pointers.
-- `LESSONS.md` - compact reusable behavior rules with hit counts; the
-  per-run improvement ratchet. Manage with `hub/scripts/lesson_add.py`.
+- `LESSONS.md` - compact evidence-backed behavior rules; no per-run improvement quota. Manage with `hub/scripts/lesson_add.py`.
 - `agent-action-log.md` - chronological account of substantive work.
   Rotated into `archive/` by `hub/scripts/memory_compact.py`.
 - `people-bios.md` - durable person context.

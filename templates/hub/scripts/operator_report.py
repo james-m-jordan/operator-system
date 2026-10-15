@@ -79,7 +79,7 @@ def main() -> int:
     by_improvement = Counter(str(close.get("improvement", "none")) for close in closes)
 
     _, lessons = split_lessons(read_text(mem / "LESSONS.md"))
-    total_hits = sum(int(entry["hits"]) for entry in lessons)
+    total_hits = sum(max(0, int(entry["hits"]) - 1) for entry in lessons)
 
     history = [line for line in load_jsonl(mem / "indexes" / "memory-health-history.jsonl") if str(line.get("generated_utc", "")) >= cutoff]
     trend = ""
@@ -99,7 +99,7 @@ def main() -> int:
             receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
         except Exception:
             continue
-        if receipt.get("executed") and str(receipt.get("created_utc", "")) >= cutoff:
+        if receipt.get("executed") and receipt.get("returncode") == 0 and str(receipt.get("created_utc", "")) >= cutoff:
             executed_deliveries += 1
 
     heartbeat = heartbeat_status(root, config)
@@ -113,7 +113,7 @@ def main() -> int:
     lines.append("## Automation Activity")
     lines.append("")
     lines.append(f"- Closed runs: **{len(closes)}** ({', '.join(f'{k}: {v}' for k, v in sorted(by_outcome.items())) or 'none'})")
-    lines.append(f"- Unclosed runs (all time): {unclosed}")
+    lines.append(f"- Unclosed packets (including uninvoked drafts): {unclosed}")
     if by_automation:
         lines.append("")
         lines.append("| automation | closed runs |")
@@ -139,7 +139,7 @@ def main() -> int:
     lines.append("")
     lines.append("## External Activity And Watchdogs")
     lines.append("")
-    lines.append(f"- Executed outbox deliveries in window: {executed_deliveries}")
+    lines.append(f"- Acknowledged outbox deliveries in window: {executed_deliveries}")
     lines.append("- Overdue scheduled automations: " + (", ".join(f"`{automation_id}`" for automation_id in overdue) or "none"))
     lines.append("")
 

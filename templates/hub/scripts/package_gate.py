@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import re
 import json
 import subprocess
 import sys
@@ -40,31 +42,67 @@ def root_metadata_files(path: Path) -> list[Path]:
     return sorted(candidates)
 
 
-def evaluate(work_item: Path) -> dict[str, object]:
-    readme = work_item / "README.md"
-    readme_text = readme.read_text(encoding="utf-8", errors="replace") if readme.exists() else ""
-    source_files = files_under(work_item, SOURCE_DIR_NAMES)
-    metadata_files = files_under(work_item, METADATA_DIR_NAMES) + root_metadata_files(work_item)
+def mapping_coverage(work_item: Path, sources: list[Path], maps: list[Path]) -> tuple[list[str], list[str]]:
+    aliases: dict[str, list[Path]] = {}
+    for source in sources:
+        for key in {source.name, source.relative_to(work_item).as_posix(),
+                    source.relative_to(work_item.parent.parent).as_posix()}:
+            aliases.setdefault(key, []).append(source)
+    covered: set[Path] = set()
+    errors = []
+    for path in maps:
+        if path.suffix.lower() not in {".csv", ".tsv", ".json"}:
+            continue
+        try:
+            if path.suffix.lower() == ".json":
+                data = json.loads(path.read_text())
+                rows = data if isinstance(data, list) else data.get("files", [data])
+            else:
+                with path.open(newline="", encoding="utf-8-sig") as handle:
+                    rows = list(csv.DictReader(handle, delimiter="\t" if path.suffix.lower() == ".tsv" else ","))
+            if not isinstance(rows, list) or not rows:
+                raise ValueError("mapping has no rows")
+            for row in rows:
+                if not isinstance(row, dict):
+                    raise ValueError("each mapping row must be an object")
+                value = next((str(row[k]).strip() for k in ("file", "path", "source_file", "stored_path") if row.get(k)), "")
+                fields = {**row, **(row.get("extra", {}) if isinstance(row.get("extra"), dict) else {})}
+                meaning = next((str(fields[k]).strip() for k in ("meaning", "description", "role", "sample", "sample_id") if fields.get(k)), "")
+                matches = aliases.get(value.removeprefix("./"), [])
+                if not value or not meaning or len(matches) != 1:
+                    raise ValueError(f"row needs an unambiguous source path and meaning: {value!r}")
+                covered.add(matches[0])
+        except (ValueError, TypeError, AttributeError, OSError, csv.Error) as exc:
+            errors.append(f"{path.relative_to(work_item)}: {exc}")
+    return [p.relative_to(work_item).as_posix() for p in sources if p not in covered], errors
 
+
+def evaluate(work_item: Path, profile: str = "evidence") -> dict[str, object]:
+    readme = work_item / "README.md"
+    readme_text = readme.read_text(encoding="utf-8", errors="replace") if readme.is_file() else ""
+    source_files = files_under(work_item, SOURCE_DIR_NAMES)
+    metadata_files = sorted(set(files_under(work_item, METADATA_DIR_NAMES) + root_metadata_files(work_item)))
     checks = {
-        "work_item_exists": {"ok": work_item.exists(), "detail": str(work_item)},
-        "readme_exists": {"ok": readme.exists(), "detail": "README.md documents package context"},
+        "work_item_exists": {"ok": work_item.is_dir(), "detail": str(work_item)},
+        "readme_exists": {"ok": bool(readme_text.strip()), "detail": "README.md documents package context"},
         "source_files_present": {"ok": bool(source_files), "count": len(source_files)},
         "metadata_present": {"ok": bool(metadata_files), "count": len(metadata_files)},
-        "context_terms_present": {
-            "ok": sum(1 for term in CONTEXT_TERMS if term in readme_text.lower()) >= 2,
-            "matched_terms": [term for term in CONTEXT_TERMS if term in readme_text.lower()],
-        },
     }
+    if profile == "evidence":
+        empty = [p.relative_to(work_item).as_posix() for p in source_files + metadata_files if p.stat().st_size == 0]
+        checks["nonempty_files"] = {"ok": not empty, "empty": empty}
+        groups = {"owner": ("owner",), "request": ("request", "outcome", "question"),
+                  "boundary": ("decision boundary", "constraint", "constraints")}
+        fields = {name: any(re.search(r"(?im)^\s*(?:[-*]\s*)?" + re.escape(term) + r"\s*:\s*[^\s]+", readme_text) for term in terms)
+                  for name, terms in groups.items()}
+        checks["context_fields"] = {"ok": all(fields.values()), "fields": fields}
+        uncovered, errors = mapping_coverage(work_item, source_files, metadata_files)
+        checks["source_mapping"] = {"ok": bool(source_files) and not uncovered and not errors,
+                                     "unmapped": uncovered, "errors": errors}
     missing = [name for name, result in checks.items() if not result["ok"]]
-    return {
-        "work_item": str(work_item),
-        "ok": not missing,
-        "checks": checks,
-        "missing": missing,
-        "source_files": [path.as_posix() for path in source_files],
-        "metadata_files": [path.as_posix() for path in metadata_files],
-    }
+    return {"work_item": str(work_item), "profile": profile, "ok": not missing, "checks": checks, "missing": missing,
+            "evidence_limit": "File presence, explicit context, and mapping coverage only; validate domain methods and claims separately.",
+            "source_files": [p.as_posix() for p in source_files], "metadata_files": [p.as_posix() for p in metadata_files]}
 
 
 def render_markdown(root: Path, result: dict[str, object]) -> str:
@@ -90,13 +128,14 @@ def main() -> int:
     parser.add_argument("--work-item", required=True, help="Work-item path to check.")
     parser.add_argument("--json", action="store_true", help="Print JSON instead of Markdown.")
     parser.add_argument("--draft-task", action="store_true", help="When BLOCKED, write a follow-up task draft via task_draft.py.")
+    parser.add_argument("--profile", choices=["structure", "evidence"], default="evidence", help="Structure is intake triage only; evidence also checks file coverage and explicit context.")
     args = parser.parse_args()
 
     root = resolve_root(args.root)
     work_item = Path(args.work_item)
     if not work_item.is_absolute():
         work_item = root / work_item
-    result = evaluate(work_item)
+    result = evaluate(work_item, args.profile)
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:

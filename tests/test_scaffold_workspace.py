@@ -168,7 +168,7 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
                 [sys.executable, "hub/scripts/backup_verify.py", "--root", ".", "--write-report"],
                 [sys.executable, "hub/scripts/export_runtime_adapters.py", "--root", "."],
                 [sys.executable, "hub/scripts/run_automation.py", "--root", ".", "--automation-id", "morning-control-panel"],
-                [sys.executable, "hub/scripts/run_close.py", "--root", ".", "--latest", "--outcome", "success", "--improvement", "lesson", "--improvement-ref", "hub/MEMORY/LESSONS.md"],
+                [sys.executable, "hub/scripts/run_close.py", "--root", ".", "--latest", "--outcome", "success", "--check", "output_verified=pass", "--evidence", "hub/config/org.json", "--improvement", "lesson", "--improvement-ref", "hub/MEMORY/LESSONS.md"],
                 [sys.executable, "hub/scripts/lesson_add.py", "--root", ".", "--rule", "Run the package gate before any analysis.", "--evidence", "hub/MEMORY/README.md"],
                 [sys.executable, "hub/scripts/wiki_compile.py", "--root", "."],
                 [sys.executable, "hub/scripts/memory_search.py", "--root", ".", "--query", "case001"],
@@ -185,7 +185,7 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
 
             index = json.loads((destination / "hub" / "MEMORY" / "indexes" / "work-item-index.json").read_text())
             self.assertEqual(index[0]["id"], "case001")
-            self.assertEqual(index[0]["package_status"], "ready_for_work")
+            self.assertEqual(index[0]["package_status"], "ready_for_review")
             digest = (destination / "hub" / "MEMORY" / "state-digest.md").read_text(encoding="utf-8")
             self.assertIn("Case 001", digest)
             self.assertIn("Memory Health", digest)
@@ -205,13 +205,13 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             self.assertEqual(close["outcome"], "success")
             self.assertEqual(close["improvement"], "lesson")
             run_packet = next((destination / "hub" / "MEMORY" / "automation-runs").glob("*/run.md")).read_text(encoding="utf-8")
-            self.assertIn("## Active Lessons", run_packet)
-            self.assertIn("## Required Closeout", run_packet)
+            self.assertIn("Look up relevant lessons", run_packet)
+            self.assertIn("## Run Contract", run_packet)
             wiki = (destination / "hub" / "wiki" / "overview.md").read_text(encoding="utf-8")
             self.assertIn("Active Lessons", wiki)
             self.assertIn("case001", wiki)
             installed = (destination / ".operator-automations" / "morning-control-panel" / "automation.md").read_text(encoding="utf-8")
-            self.assertIn("Standard Ratchet", installed)
+            self.assertIn("Run Contract", installed)
             lessons = (destination / "hub" / "MEMORY" / "LESSONS.md").read_text(encoding="utf-8")
             self.assertIn("Run the package gate before any analysis.", lessons)
             self.assertTrue((destination / ".operator-automations" / "morning-control-panel" / "automation.json").exists())
@@ -478,14 +478,14 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             self.assertEqual(first.returncode, 0, msg=first.stderr)
             self.assertIn("added new lesson", first.stdout)
 
-            second = run_lesson("--rule", "Verify webhook delivery receipts after each send.")
+            second = run_lesson("--rule", "Verify webhook delivery receipts after every send.", "--evidence", "second-case")
             self.assertEqual(second.returncode, 0, msg=second.stderr)
             self.assertIn("re-confirmed existing lesson (hits: 2)", second.stdout)
             text = lessons_path.read_text(encoding="utf-8")
             self.assertEqual(text.count("Verify webhook delivery receipts"), 1)
             self.assertIn("hits: 2", text)
 
-            pruned = run_lesson("--prune", "webhook delivery receipts")
+            pruned = run_lesson("--prune", "Verify webhook delivery receipts after every send.")
             self.assertEqual(pruned.returncode, 0, msg=pruned.stderr)
             self.assertNotIn("webhook delivery receipts", lessons_path.read_text(encoding="utf-8"))
 
@@ -504,7 +504,7 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
                 text=True,
                 check=False,
             )
-            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            self.assertEqual(result.returncode, 3, msg=result.stderr)
             invoke_files = list((destination / "hub" / "MEMORY" / "automation-runs").glob("*/invoke.json"))
             self.assertEqual(len(invoke_files), 1)
             invoke = json.loads(invoke_files[0].read_text(encoding="utf-8"))
@@ -566,9 +566,9 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
             self.module.scaffold(self.config, source_ws)
             self.module.scaffold(self.config, target_ws)
 
-            for _ in range(3):
+            for confirmation in range(3):
                 subprocess.run(
-                    [sys.executable, "hub/scripts/lesson_add.py", "--root", ".", "--rule", "Escalate ambiguous approvals to the owner.", "--evidence", "hub/MEMORY/comms.md"],
+                    [sys.executable, "hub/scripts/lesson_add.py", "--root", ".", "--rule", "Escalate ambiguous approvals to the owner.", "--evidence", f"case-{confirmation}"],
                     cwd=source_ws,
                     capture_output=True,
                     text=True,
@@ -634,7 +634,7 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
                     check=False,
                 )
                 close = subprocess.run(
-                    [sys.executable, "hub/scripts/run_close.py", "--root", ".", "--latest", "--outcome", "success", "--improvement", "pruning"],
+                    [sys.executable, "hub/scripts/run_close.py", "--root", ".", "--latest", "--outcome", "success", "--check", "output_verified=pass", "--evidence", "hub/config/org.json", "--improvement", "pruning"],
                     cwd=destination,
                     capture_output=True,
                     text=True,
@@ -681,7 +681,7 @@ class ScaffoldWorkspaceTests(unittest.TestCase):
                 check=False,
             )
             subprocess.run(
-                [sys.executable, "hub/scripts/run_close.py", "--root", ".", "--latest", "--outcome", "success", "--lesson", "Report test lesson about verifying digests."],
+                [sys.executable, "hub/scripts/run_close.py", "--root", ".", "--latest", "--outcome", "success", "--check", "output_verified=pass", "--evidence", "hub/config/org.json", "--lesson", "Report test lesson about verifying digests."],
                 cwd=destination,
                 capture_output=True,
                 text=True,

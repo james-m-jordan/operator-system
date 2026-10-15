@@ -16,6 +16,6 @@ jobs:
       - name: Compile all scripts
         run: python3 -m py_compile scripts/*.py templates/hub/scripts/*.py
       - name: Run tests
-        run: python3 -m unittest tests/test_scaffold_workspace.py -v
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
       - name: Release audit
         run: python3 scripts/audit_release.py --json

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -19,7 +20,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from operator_common import load_config, memory_dir, relpath, resolve_root, write_json, write_text
+from operator_common import load_config, memory_dir, relpath, resolve_root, write_json, write_text, workspace_lock
 
 
 def slugify(value: object) -> str:
@@ -232,28 +233,85 @@ def write_receipt(
     return base.with_suffix(".json")
 
 
+def deliver_once(root: Path, config: dict, outbox_path: Path, payload: dict, execute: bool,
+                 run_id: str = "", resolution: str = "", evidence: str = "") -> tuple[int, str]:
+    delivery = configured_delivery(payload)
+    identity = str(payload.get("delivery_id") or relpath(root, outbox_path))
+    key = hashlib.sha256(identity.encode()).hexdigest()
+    fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    state_path = memory_dir(root, config) / "outbox-delivery-state" / f"{key}.json"
+    if not execute and not resolution:
+        code, detail = deliver(payload, delivery, False)
+        receipt = write_receipt(root, config, outbox_path, payload, delivery, False, code, detail, run_id)
+        return code, relpath(root, receipt)
+    with workspace_lock(root, config, name="delivery-" + key):
+        previous = json.loads(state_path.read_text()) if state_path.exists() else {}
+        if not previous:
+            # Honor executed receipts created before delivery reservations existed.
+            for old_path in sorted((memory_dir(root, config) / "outbox-deliveries").rglob("*.json")):
+                old = json.loads(old_path.read_text())
+                if old.get("outbox_item") == relpath(root, outbox_path) and old.get("executed"):
+                    previous = {"delivery_id": identity, "payload_sha256": fingerprint,
+                                "status": "delivered" if old.get("returncode") == 0 else "unknown",
+                                "receipt": relpath(root, old_path), "legacy_receipt": True}
+                    write_json(state_path, previous)
+                    break
+        if previous and previous.get("payload_sha256") != fingerprint:
+            return 2, "outbox content changed after reservation; reconcile the original item before creating a replacement"
+        if resolution:
+            if previous.get("status") not in {"attempting", "unknown"}:
+                return 2, "only an uncertain delivery can be reconciled"
+            if not evidence.strip():
+                return 2, "reconciliation requires --evidence of delivery or verified absence"
+            previous["status"] = "delivered" if resolution == "delivered" else "not-delivered"
+            previous.setdefault("reconciliations", []).append({"result": resolution, "evidence": evidence,
+                "at": datetime.now(timezone.utc).isoformat()})
+            write_json(state_path, previous)
+            return 0, f"Recorded {resolution}; a verified absence permits a later explicit retry."
+        if previous.get("status") == "delivered":
+            return 0, f"Already delivered; receipt: {previous.get('receipt', relpath(root, state_path))}"
+        if previous.get("status") in {"attempting", "unknown"}:
+            return 2, "delivery is uncertain; inspect the destination and use --resolve with --evidence before retrying"
+        if delivery_type(payload, delivery) in {"markdown-outbox", "task-draft", "noop"}:
+            code, detail = deliver(payload, delivery, False)
+            receipt = write_receipt(root, config, outbox_path, payload, delivery, False, code, detail, run_id)
+            return code, relpath(root, receipt)
+        state = {**previous, "delivery_id": identity, "payload_sha256": fingerprint, "status": "attempting",
+                 "run_id": run_id, "reserved_utc": datetime.now(timezone.utc).isoformat()}
+        write_json(state_path, state)  # Reserve before any external effect; never expire automatically.
+        try:
+            code, detail = deliver(payload, delivery, True)
+        except Exception as exc:
+            code, detail = 2, f"delivery result unknown: {type(exc).__name__}"
+        state["status"] = "delivered" if code == 0 else "unknown"
+        state["returncode"] = code
+        receipt = write_receipt(root, config, outbox_path, payload, delivery, True, code, detail, run_id)
+        state["receipt"] = relpath(root, receipt)
+        write_json(state_path, state)
+        return code, relpath(root, receipt)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", default="", help="Workspace root.")
-    parser.add_argument("--publisher", default="status", help="Publisher key for --latest lookup.")
-    parser.add_argument("--outbox-item", default="", help="Specific outbox JSON file.")
-    parser.add_argument("--latest", action="store_true", help="Deliver the latest JSON item for --publisher.")
-    parser.add_argument("--execute", action="store_true", help="Perform external delivery. Default is dry-run receipt only.")
-    parser.add_argument("--run-id", default="", help="Automation run ID this delivery belongs to; recorded in the receipt.")
+    parser.add_argument("--root", default="")
+    parser.add_argument("--publisher", default="status")
+    parser.add_argument("--outbox-item", default="")
+    parser.add_argument("--latest", action="store_true", help="Interactive selection only; workers should pass the exact outbox path.")
+    parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--run-id", default="")
+    parser.add_argument("--resolve", choices=["delivered", "not-delivered"], default="")
+    parser.add_argument("--evidence", default="", help="Verified destination evidence for reconciliation.")
     args = parser.parse_args()
-
+    if not args.outbox_item and not args.latest:
+        parser.error("provide --outbox-item or --latest")
+    if args.resolve and (args.execute or not args.outbox_item):
+        parser.error("--resolve requires an exact --outbox-item and cannot be combined with --execute")
     root = resolve_root(args.root)
     config = load_config(root)
-    if not args.outbox_item and not args.latest:
-        raise SystemExit("provide --outbox-item or --latest")
     outbox_path, payload = load_payload(root, config, args)
-    delivery = configured_delivery(payload)
-    returncode, detail = deliver(payload, delivery, args.execute)
-    receipt = write_receipt(root, config, outbox_path, payload, delivery, args.execute, returncode, detail, args.run_id)
-    print(relpath(root, receipt))
-    if args.execute and not args.run_id:
-        print("Note: no --run-id given; if this delivery closes an automation run, record it with run_close.py.")
-    return returncode
+    code, detail = deliver_once(root, config, outbox_path, payload, args.execute, args.run_id, args.resolve, args.evidence)
+    print(detail)
+    return code
 
 
 if __name__ == "__main__":

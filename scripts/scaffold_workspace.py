@@ -173,16 +173,18 @@ Generated helper scripts:
 - `memory_health.py` - measures compact memory surfaces against `memory_budgets`.
 - `memory_compact.py` - rotates old action-log entries into `hub/MEMORY/archive/` (dry-run by default).
 - `memory_search.py` - keyword search across memory, wiki, knowledge base, and archives.
-- `run_close.py` - records the outcome and improvement of one automation run (`--lesson` adds/re-confirms a lesson inline).
-- `lesson_add.py` - adds, re-confirms (hit counts), or prunes lessons in `hub/MEMORY/LESSONS.md`.
+- `run_close.py` - records evidence-backed outcomes and optional learning for one automation run (`--lesson` adds/re-confirms a lesson inline).
+- `lesson_add.py` - adds exact rules, deduplicates evidence, or prunes exact lessons in `hub/MEMORY/LESSONS.md`.
 - `wiki_compile.py` - compiles `hub/wiki/overview.md` from indexes, lessons, and run history.
 - `config_check.py` - validates `hub/config/org.json` types, cron fields, and adapter names.
 - `retention_sweep.py` - retires old runtime artifacts into `archive/retired/` (dry-run by default).
 - `lesson_pack.py` - exports promoted lessons as a portable pack; imports packs with fuzzy merge.
 - `operator_report.py` - compiles an executive report: runs, outcomes, lessons, health trend.
-- `ops.py` - single entry point: `startup`, `doctor`, `run`, `close`, `search`, `review`, `compact`, `sweep`, `wiki`, `report`, `pack`, `verify`.
+- `ops.py` - single entry point: `observe`, `prepare`, `startup`, `doctor`, `run`, `close`, `search`, `review`, `compact`, `sweep`, `wiki`, `report`, `pack`, `verify`.
 
-Shortcut for the whole startup refresh:
+Use `ops.py observe` for read-only checks and `ops.py prepare --repo hub` for scoped work.
+
+Broad maintenance refresh:
 
 ```bash
 python3 hub/scripts/ops.py startup
@@ -199,7 +201,7 @@ python3 hub/scripts/ops.py startup
 - `deliver_outbox.py` - dry-runs or executes configured outbox delivery adapters.
 - `export_runtime_adapters.py` - exports cron and GitHub Actions scheduler drafts plus publisher notes.
 
-Recommended startup refresh:
+Optional broad maintenance refresh:
 
 ```bash
 python3 hub/scripts/preflight_capabilities.py --root .
@@ -220,7 +222,7 @@ Export runtime adapter drafts and create a local run packet:
 ```bash
 python3 hub/scripts/export_runtime_adapters.py --root .
 python3 hub/scripts/run_automation.py --root . --automation-id morning-control-panel
-python3 hub/scripts/run_close.py --root . --latest --outcome success --improvement lesson --improvement-ref hub/MEMORY/LESSONS.md
+python3 hub/scripts/run_close.py --root . --run-id <run-id> --outcome success --evidence <verified-output> --check output_verified=pass
 python3 hub/scripts/memory_search.py --root . --query "keyword"
 python3 hub/scripts/publish_status.py --root . --publisher status --message "Status text here"
 python3 hub/scripts/deliver_outbox.py --root . --publisher status --latest

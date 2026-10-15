@@ -1,132 +1,83 @@
-# Generalized Operator System Blueprint
+# Operator System Architecture
 
-## Objective
+The starter kit renders portable templates into a workspace. Configuration names
+an organization and its adapters; source evidence and user authority remain local.
 
-Create a distributable version of the `lia-live` system: a portable operating
-workspace with automations, memory, repo hygiene, and action routing that can
-serve many organization types.
+## Components and ownership
 
-## Architecture
-
-The generalized workspace has four top-level surfaces:
-
-| Surface | Purpose |
+| Component | Responsibility |
 | --- | --- |
-| `hub/` | Admin control room: policy, automation specs, memory, scripts, configs, and compiled synthesis. |
-| `work-items/` | Canonical execution folders or nested repos for projects, clients, programs, cases, initiatives, or experiments. |
-| `knowledge-base/` | Shared procedures, standards, examples, reusable references, and training moments. |
-| `local-private/` | Ignored local-only packets for private attachments, receipts, exports, and credentials-derived evidence. |
+| `AGENTS.md` | Concise authority, context selection, evidence, and closeout policy |
+| `hub/config/org.json` | Paths, capabilities, adapter commands, schedules, budgets |
+| `hub/automations/` | Task-specific prompts and acceptance-check names |
+| `hub/MEMORY/` | Durable facts, reports, lessons, and run/delivery records |
+| `work-items/` | Canonical sources, mappings, decisions, and outputs |
+| `knowledge-base/` | Reusable procedures |
+| `local-private/` | Ignored private material |
 
-The system is prompt-first and file-first. Agents should be able to start from
-the current checked-out files, run a small preflight, act on bounded work, log
-what changed, and leave repo state clean.
+## Preparation
 
-## Memory Model
+`ops observe` validates configuration without generated-state writes.
+`ops prepare --repo <path>` checks selected write dependencies and requested
+capabilities. `ops startup` performs the full maintenance refresh. Scope failures
+block affected writes; existing dirt is preserved, and automatic stashing is disabled.
 
-Memory is layered so startup reads are small and deeper history remains
-queryable:
+Shared instructions come from `operator_common.run_contract()`. Installed bundles
+and runtime packets use that function instead of repeating mandatory startup and
+learning recipes in every prompt. Lessons are retrieved when relevant.
 
-| File Or Folder | Role |
-| --- | --- |
-| `hub/MEMORY/state-digest.md` | Regenerated current-state working set. Read on every admin run. |
-| `hub/MEMORY/capabilities.json` | Tool and connector health flags. Read before assuming a capability works. |
-| `hub/MEMORY/LANDMARKS.md` | Compact top-of-mind pointer map. No long run narratives. |
-| `hub/MEMORY/LESSONS.md` | Compact reusable behavior rules with hit counts. Read on every admin run; the per-run improvement ratchet. |
-| `hub/MEMORY/indexes/memory-health.json` | Budget compliance snapshot for compact memory surfaces, plus an append-only history trend. |
-| `hub/MEMORY/agent-action-log.md` | Chronological account of substantive work. Rotated into `archive/` when over budget. |
-| `hub/MEMORY/automation-runs/` | Run packets plus `close.json` outcome records and `invoke.json` agent-invocation results. |
-| `hub/MEMORY/self-optimization/` | Dated system-review-loop consolidation reports. |
-| `hub/MEMORY/people-bios.md` | Durable person context: responsibilities, preferences, constraints, active work. |
-| `hub/MEMORY/work-item-bios.md` | Durable work-stream context: scope, status, blockers, next actions. |
-| `hub/MEMORY/comms.md` | Important communication context and decisions. |
-| `hub/MEMORY/references.md` | Distilled reusable external-reference takeaways. |
-| `hub/MEMORY/repo-syncs/` | Dated sync/preflight reports. |
-| `hub/MEMORY/archive/` | Retired reports and inactive automation artifacts. |
-| `hub/wiki/` | Slower-changing synthesized views compiled from memory and work-item state by `wiki_compile.py`. |
+## Run lifecycle
 
-## Generalized Automations
+1. Generate a unique packet with the objective, source references, permitted scope,
+   exact run ID, and acceptance-check names.
+2. Optional invocation passes the packet on stdin, sets the workspace directory,
+   and records start/process exit separately from task completion.
+3. The agent performs authorized work and validates its result.
+4. Closeout requires evidence and named passing checks for success/no-op, or a
+   concrete blocker/next action for partial, blocked, or failed work.
+5. A process exit of zero without a matching valid chained close returns runner
+   exit code 3. Process failures keep their nonzero exit code.
 
-The live `lia-live` automation set maps to these portable modules:
+Closeout is idempotent under a process lock. Amendments are explicit, revisioned
+receipts. New receipts cover the full record in a hash chain. Atomic file replacement
+prevents partially written JSON; retry can rebuild close.json after a chain commit.
+Older hash-chain entries remain readable without claiming new-format guarantees.
 
-| Live Pattern | General Module | Distribution Status |
-| --- | --- | --- |
-| Personal Agent Morning Plan | Morning Control Panel | Spec template included. |
-| Jordan Lab Slack Codex Daily Turn | Chat Intake And Action Turn | Spec template included. |
-| Slack Science Lit. Scrape To RSS | External Feed Digest | Spec template included. |
-| Conference Planning Refresh | Opportunity Planning Refresh | Spec template included. |
-| Lia-live Agent Dreaming Loop | System Review Loop | Spec template included. |
-| Lab Maintenance Checklist Scan | Operations Checklist Scan | Spec template included. |
-| Weekly Lia-Live Backup To Memory1 | Workspace Backup | Spec template included. |
-| Toria PCard Receipt Packet | Receipt Packet Assembly | Spec template included. |
-| Slack File Intake Skill | Chat File Intake | Needs configurable helper port. |
-| `preflight_capabilities.py` | Capability Snapshot | Generic helper included. |
-| `sync_clean_repos.py` | Workspace Sync Report | Generic helper included. |
-| `memory_index_refresh.py` | Work-Item Memory Index | Generic helper included. |
-| `state_digest.py` | Current-State Digest | Generic helper included. |
-| Memory budget enforcement | Memory Health Snapshot (`memory_health.py`) | Generic helper included. |
-| Action log rotation | Memory Compaction (`memory_compact.py`) | Generic helper included. |
-| Deep-history retrieval | Memory Search (`memory_search.py`) | Generic helper included. |
-| Run outcome tracking | Run Closeout (`run_close.py`) | Generic helper included. |
-| Lesson lifecycle | Lesson Add/Confirm/Prune (`lesson_add.py`) | Generic helper included. |
-| Portable institutional memory | Lesson Packs (`lesson_pack.py` export/import) | Generic helper included. |
-| Executive reporting | Operator Report (`operator_report.py`) | Generic helper included. |
-| Tamper-evident run ledger | Close Chain (`run_close.py --verify-chain`) | Generic helper included. |
-| Wiki synthesis | Wiki Compile (`wiki_compile.py`) | Generic helper included. |
-| Agent runtime invocation | Run Automation `--invoke` + `runtime.agent_command` | Generic adapter included. |
-| Kit-to-workspace updates | Workspace Upgrade (`scripts/upgrade_workspace.py` + template manifest) | Generic helper included. |
-| `work_package_gate.py` | Work Package Gate | Generic helper included. |
-| Automation TOML/prompt installs | Automation Manifest Installer | Generic helper included. |
-| Easy-mode issue drafting | Task Draft Helper | Generic helper included. |
-| Weekly backup verification | Backup Verification | Generic helper included. |
-| Slack file intake routing | Chat File Fetch + Intake | Direct URL, Slack Web API, command fetch, local byte preservation, and canonical intake helpers included. |
-| Cron/GitHub scheduled runs | Runtime Adapter Export | Scheduler drafts and run-packet creation included; live connector publishing still external. |
-| Slack/status posting | Publisher Outbox + Delivery | Markdown/JSON outbox helper plus dry-run-first webhook, command, and GitHub issue delivery included. |
-| Rsync/local backup transfer | Backup Transfer | Dry-run-first local-copy and rsync transfer helper included. |
+## Delivery lifecycle
 
-## Work Package Gate
+Outbox IDs persist across retries. A per-ID lock and durable reservation precede
+external execution. Acknowledged sends reuse their existing receipt. Uncertain
+results require destination reconciliation; verified absence allows an explicit
+retry. Historical executed receipts are consulted before the first new reservation.
+This avoids automatic duplicate sends; it does not promise transactional exactly-once
+semantics across third-party services.
 
-The generalized package gate should require:
+## Evidence and memory
 
-1. Source files or authoritative inputs exist in the canonical work-item path.
-2. Metadata maps every source-bearing file, row, sheet, attachment, or message to
-   its meaning.
-3. Work context explains the question, requested outcome, owner, constraints,
-   and decision boundary.
-4. The analysis or transformation method is recorded.
-5. The result separates verified facts, assumptions, and human decisions.
+The generic evidence gate validates nonempty inputs, labeled owner/request/boundary
+context, and unambiguous source-map coverage. A structure-only profile supports
+intake without implying readiness. Domain-specific validation remains required.
 
-If any requirement is missing, the agent creates a follow-up task instead of
-running partial analysis.
+Learning is optional. Exact rules can receive new evidence; near matches are
+review candidates, not confirmations. Evidence references are deduplicated. Rules
+are promoted for demonstrated benefit and removed for a supported reason.
+`none` improvements and `no_op` outcomes are healthy.
 
-## Porting Rules
+## Health and interfaces
 
-- Replace lab-specific names with config values.
-- Replace `team-projects/proj###` with configurable work-item roots.
-- Keep admin-only surfaces separate from team-facing work surfaces.
-- Use connector capability flags before attempting connector actions.
-- Keep local-private evidence ignored and out of commits.
-- Preserve original source files and attachments.
-- Record substantive runs in the action log and refresh compact memory surfaces
-  only when they change current behavior.
+Health separates packet, start, close, and successful-completion timestamps. Numeric
+cron schedules use their IANA timezone and grace period, rather than an inferred
+multi-day gap. Explicit legacy max-gap overrides remain supported.
 
-## Release Criteria
+Scheduler exports are draft packet generators. Native provider profiles, live
+scheduler execution bindings, bounded continuation, and comparative model evals
+remain separate work. No model capabilities or speed improvements are claimed by
+this release's fixture tests.
 
-The distributable version is complete when:
+## Distribution
 
-1. A clean workspace can be scaffolded from config.
-2. The scaffolded workspace can run preflight, sync, memory-index, state-digest,
-   and package-gate commands.
-3. Every generalized automation has an installable prompt/spec and expected
-   memory closeout.
-4. Core scripts read config instead of hard-coded Jordan Lab paths.
-5. A versioned release archive and checksum manifest can be built from the
-   distribution folder.
-6. A release audit can regenerate `COMPLETION-MATRIX.md` with all required
-   files, automation specs, config surfaces, generated workspace neutrality, and
-   archive contents passing.
-7. Tests cover scaffold generation, config validation, memory index generation,
-   repo sync reporting, automation installation, task drafting, backup
-   verification, backup transfer, chat-file fetch/intake, runtime adapter
-   export, run packets, publisher outbox creation, and delivery receipts.
-8. Documentation explains how to install, customize, run automations, and migrate
-   an existing organization into the system.
+Scaffolding records file hashes and the kit version. Upgrades add missing templates
+and replace unchanged ones, while reporting conflicts and preserving user-owned
+memory/admin records. Migration notes identify obsolete policy language that needs
+review in those retained records. The starter kit stays independent of any lab's
+private data or scientific conventions.

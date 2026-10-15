@@ -7,6 +7,8 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from zoneinfo import ZoneInfo
+from schedule_health import parse_cron
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -46,7 +48,9 @@ def check_config(config: dict[str, object], raw: dict[str, object]) -> tuple[lis
             errors.append("memory_budgets: must be an object")
         else:
             for key, value in budgets.items():
-                if key not in DEFAULT_MEMORY_BUDGETS:
+                if key == "runs_without_improvement_max":
+                    warnings.append("runs_without_improvement_max is retired and ignored; no-change runs are healthy")
+                elif key not in DEFAULT_MEMORY_BUDGETS:
                     warnings.append(f"memory_budgets.{key}: unknown budget key")
                 if not isinstance(value, int) or value <= 0:
                     errors.append(f"memory_budgets.{key}: must be a positive integer")
@@ -61,8 +65,14 @@ def check_config(config: dict[str, object], raw: dict[str, object]) -> tuple[lis
                     errors.append(f"automation_schedules.{automation_id}: must be an object")
                     continue
                 cron = str(schedule.get("cron", ""))
-                if len(cron.split()) != 5:
-                    errors.append(f"automation_schedules.{automation_id}.cron: expected 5 cron fields, got {cron!r}")
+                try:
+                    parse_cron(cron)
+                    ZoneInfo(str(schedule.get("timezone", config.get("timezone", "UTC"))))
+                except (ValueError, KeyError) as exc:
+                    errors.append(f"automation_schedules.{automation_id}: invalid cron/timezone: {exc}")
+                grace = schedule.get("grace_minutes", 15)
+                if not isinstance(grace, int) or isinstance(grace, bool) or grace < 0:
+                    errors.append(f"automation_schedules.{automation_id}.grace_minutes: must be a nonnegative integer")
                 if not isinstance(schedule.get("enabled"), bool):
                     warnings.append(f"automation_schedules.{automation_id}.enabled: should be true or false")
                 max_gap = schedule.get("max_gap_hours")

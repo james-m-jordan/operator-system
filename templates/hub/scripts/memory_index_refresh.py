@@ -14,6 +14,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from package_gate import evaluate
 from operator_common import load_config, memory_dir, read_text, relpath, resolve_root, work_item_dir, write_json, write_text
 
 
@@ -73,18 +74,6 @@ def blocker_lines(path: Path) -> list[dict[str, str]]:
     return (explicit + inferred)[:20]
 
 
-def package_status(has_readme: bool, source_count: int, metadata_count: int, output_count: int) -> str:
-    if output_count and source_count:
-        return "analyzed_or_reviewed"
-    if has_readme and source_count and metadata_count:
-        return "ready_for_work"
-    if has_readme and source_count:
-        return "needs_metadata"
-    if has_readme:
-        return "scaffold"
-    return "sparse"
-
-
 def build_indexes(root: Path, config: dict[str, object]) -> tuple[list[dict[str, object]], list[dict[str, object]], dict[str, object]]:
     items = []
     blockers = []
@@ -98,15 +87,17 @@ def build_indexes(root: Path, config: dict[str, object]) -> tuple[list[dict[str,
         metadata_files = files_in_named_dirs(item_dir, METADATA_DIR_NAMES)
         output_files = files_in_named_dirs(item_dir, OUTPUT_DIR_NAMES)
         item_blockers = blocker_lines(item_dir)
-        status = package_status(bool(readme), len(source_files), len(metadata_files), len(output_files))
+        gate = evaluate(item_dir)
+        status = "ready_for_review" if gate["ok"] else "needs_evidence"
         record = {
             "id": item_dir.name,
             "path": relpath(root, item_dir),
             "title": first_heading(readme) if readme else item_dir.name,
             "package_status": status,
+            "missing_evidence": gate["missing"],
             "has_readme": bool(readme),
             "source_file_count": len(source_files),
-            "metadata_file_count": len(metadata_files),
+            "metadata_file_count": len(gate["metadata_files"]),
             "output_file_count": len(output_files),
             "blocker_count": len(item_blockers),
             "next_actions": [blocker["text"] for blocker in item_blockers[:5]],
@@ -127,8 +118,8 @@ def build_indexes(root: Path, config: dict[str, object]) -> tuple[list[dict[str,
         "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "work_item_count": len(items),
         "blocker_count": len(blockers),
-        "ready_for_work": sum(1 for item in items if item["package_status"] == "ready_for_work"),
-        "needs_metadata": sum(1 for item in items if item["package_status"] == "needs_metadata"),
+        "ready_for_review": sum(1 for item in items if item["package_status"] == "ready_for_review"),
+        "needs_evidence": sum(1 for item in items if item["package_status"] == "needs_evidence"),
     }
     return items, blockers, summary
 
@@ -138,8 +129,8 @@ def render_summary(summary: dict[str, object], items: list[dict[str, object]]) -
     lines.append(f"- Generated: {summary['generated_utc']}")
     lines.append(f"- Work items: {summary['work_item_count']}")
     lines.append(f"- Blockers: {summary['blocker_count']}")
-    lines.append(f"- Ready for work: {summary['ready_for_work']}")
-    lines.append(f"- Needs metadata: {summary['needs_metadata']}")
+    lines.append(f"- Ready for review: {summary['ready_for_review']}")
+    lines.append(f"- Needs evidence: {summary['needs_evidence']}")
     lines.append("")
     lines.append("| work item | status | source | metadata | outputs | blockers |")
     lines.append("| --- | --- | --- | --- | --- | --- |")
@@ -156,8 +147,8 @@ def validate(items: list[dict[str, object]]) -> list[str]:
     for item in items:
         if not item["path"]:
             errors.append(f"{item['id']}: missing path")
-        if item["package_status"] == "ready_for_work" and not item["metadata_file_count"]:
-            errors.append(f"{item['id']}: ready_for_work without metadata")
+        if item["package_status"] == "ready_for_review" and not item["metadata_file_count"]:
+            errors.append(f"{item['id']}: ready_for_review without metadata")
     return errors
 
 

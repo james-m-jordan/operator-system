@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.6.0 — 2026-10-14
+
+- Streamline the policy and share one automation run contract; use context on
+  demand and treat no-change runs as healthy.
+- Add read-only observe and scoped prepare; preserve dirty work and disable
+  automatic stashing. Reserve full startup for broad maintenance.
+- Require evidence and acceptance checks for successful/no-op closeout. Add
+  unique run IDs, workspace-bound stdin invocation, incomplete-run detection,
+  idempotent closeout, explicit amendments, and full-record chain verification.
+- Reserve deliveries before sending, suppress duplicate retries, and reconcile
+  uncertain results explicitly, including compatibility with old receipts.
+- Validate nonempty source packages, explicit context, and mapping coverage;
+  distinguish structural intake from evidence checks and domain validation.
+- Match lessons exactly, deduplicate evidence, reject fuzzy deletion, and retire
+  improvement quotas and automatic hit-count promotion.
+- Evaluate schedule health against actual timezone-aware cron occurrences and
+  successful completion; track dispatch/start/close separately.
+- Add regression coverage for concurrent writes/delivery, interruption, evidence,
+  schedule boundaries, migration, and policy behavior. Provider model profiles
+  and live model evals remain separate follow-up work.
+
 ## 0.5.0 - 2026-07-05
 
 - Lesson Packs (`lesson_pack.py`): export promoted lessons as a portable,

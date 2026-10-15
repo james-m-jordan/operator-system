@@ -7,8 +7,9 @@ import json
 import os
 import re
 import time
+import tempfile
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +28,6 @@ DEFAULT_MEMORY_BUDGETS = {
     "action_log_max_entries": 100,
     "top_of_mind_max_age_days": 45,
     "unclosed_runs_max": 5,
-    "runs_without_improvement_max": 5,
 }
 
 
@@ -72,13 +72,21 @@ def read_text(path: Path) -> str:
 
 
 def write_json(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_text(path, json.dumps(data, indent=2, sort_keys=True) + "\n")
 
 
 def write_text(path: Path, text: str) -> None:
+    """Replace a complete file atomically; readers never see a partial JSON record."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    fd, temporary = tempfile.mkstemp(prefix="." + path.name + ".", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
 
 def load_memory_budgets(config: dict[str, Any]) -> dict[str, int]:
@@ -86,7 +94,7 @@ def load_memory_budgets(config: dict[str, Any]) -> dict[str, int]:
     loaded = config.get("memory_budgets")
     if isinstance(loaded, dict):
         for key, value in loaded.items():
-            if isinstance(value, int) and value > 0:
+            if key in budgets and isinstance(value, int) and value > 0:
                 budgets[key] = value
     return budgets
 
@@ -123,113 +131,116 @@ def action_log_entry_date(entry: list[str]) -> str:
 
 SYNC_RISK_LABELS = ("Diverged", "Fetch Failed", "Pull Failed", "Reapply Failed", "Hidden Stash State")
 
-LOCK_STALE_SECONDS = 600
-
-
 @contextmanager
 def workspace_lock(root: Path, config: dict[str, Any], name: str = "memory", timeout: int = 30):
-    """Cross-process lock for shared memory files. Breaks stale locks."""
-    lock_dir = memory_dir(root, config) / ".locks" / f"{name}.lock"
-    lock_dir.parent.mkdir(parents=True, exist_ok=True)
+    """Process-owned POSIX advisory lock, released by the OS even after a crash.
+
+    Operator workspaces support macOS and Linux. Lock files remain in place so
+    two processes cannot lock different inodes after an unlink/recreate race.
+    """
+    import fcntl
+
+    lock_file = memory_dir(root, config) / ".locks" / f"{name}.flock"
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
     deadline = time.monotonic() + timeout
-    while True:
-        try:
-            lock_dir.mkdir()
-            (lock_dir / "owner").write_text(f"{os.getpid()} {time.time()}\n", encoding="utf-8")
-            break
-        except FileExistsError:
+    with lock_file.open("a+") as handle:
+        while True:
             try:
-                stamp = float((lock_dir / "owner").read_text(encoding="utf-8").split()[1])
-            except Exception:
-                stamp = 0.0
-            if time.time() - stamp > LOCK_STALE_SECONDS:
-                try:
-                    (lock_dir / "owner").unlink(missing_ok=True)
-                    lock_dir.rmdir()
-                except OSError:
-                    pass
-                continue
-            if time.monotonic() > deadline:
-                raise SystemExit(f"could not acquire {name} lock within {timeout}s; another run holds {lock_dir}")
-            time.sleep(0.2)
-    try:
-        yield
-    finally:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise SystemExit(f"could not acquire {name} lock within {timeout}s")
+                time.sleep(0.1)
         try:
-            (lock_dir / "owner").unlink(missing_ok=True)
-            lock_dir.rmdir()
-        except OSError:
-            pass
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
 
 
-def cron_max_gap_hours(cron: str) -> int:
-    """Coarse expected max gap between runs for a cron expression."""
-    fields = cron.split()
-    if len(fields) != 5:
-        return 26
-    _, hour, day_of_month, _, day_of_week = fields
-    if day_of_month != "*":
-        return 32 * 24
-    if day_of_week != "*":
-        return 8 * 24
-    if hour != "*":
-        return 26
-    return 3
+def heartbeat_status(root: Path, config: dict[str, Any], now: datetime | None = None) -> list[dict[str, Any]]:
+    """Track packet, start, close, and successful completion separately."""
+    from schedule_health import latest_due
+    from run_close import validate_close
 
-
-def heartbeat_status(root: Path, config: dict[str, Any]) -> list[dict[str, Any]]:
-    """Per enabled automation schedule: last run recency vs expected cadence."""
+    now = now or datetime.now(timezone.utc)
     schedules = config.get("automation_schedules", {})
-    if not isinstance(schedules, dict):
-        return []
-    runtime = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
-    run_root = root / str(runtime.get("run_root", "hub/MEMORY/automation-runs"))
-    last_run: dict[str, str] = {}
-    if run_root.exists():
-        for child in sorted(run_root.iterdir()):
-            try:
-                meta = json.loads((child / "run.json").read_text(encoding="utf-8"))
-            except Exception:
-                continue
-            automation_id = str(meta.get("automation_id", ""))
-            created = str(meta.get("created_utc", ""))
-            if automation_id and created > last_run.get(automation_id, ""):
-                last_run[automation_id] = created
-    now = datetime.now(timezone.utc)
+    run_root = root / str(config.get("runtime", {}).get("run_root", "hub/MEMORY/automation-runs"))
+    activity: dict[str, dict[str, str]] = {}
+    for path in sorted(run_root.glob("*/run.json")):
+        try:
+            meta = json.loads(path.read_text())
+            item = activity.setdefault(meta["automation_id"], {})
+            def record(key: str, value: str) -> None:
+                # Parse before comparing so malformed timestamps cannot imply freshness.
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                if parsed.tzinfo is None or parsed > now:
+                    raise ValueError("timestamp must be timezone-aware and not in the future")
+                canonical = parsed.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                item[key] = max(item.get(key, ""), canonical)
+            record("last_packet", meta["created_utc"])
+            started = path.parent / "started.json"
+            if started.exists():
+                record("last_started", json.loads(started.read_text())["started_utc"])
+            closed = path.parent / "close.json"
+            if closed.exists():
+                close = json.loads(closed.read_text())
+                record("last_closed", close["closed_utc"])
+                validate_close(root, meta, close)
+                if close["outcome"] in {"success", "no_op"}:
+                    previous = item.get("last_success", "")
+                    record("last_success", close["closed_utc"])
+                    if item["last_success"] > previous:
+                        # A late result from an old packet does not cover a newer scheduled occurrence.
+                        item["last_success_created"] = datetime.fromisoformat(meta["created_utc"].replace("Z", "+00:00")).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        except (ValueError, OSError, KeyError, TypeError):
+            continue
     statuses = []
     for automation_id, schedule in sorted(schedules.items()):
         if not isinstance(schedule, dict) or not schedule.get("enabled"):
             continue
-        max_gap = schedule.get("max_gap_hours") or cron_max_gap_hours(str(schedule.get("cron", "")))
-        last = last_run.get(automation_id, "")
-        status = "never-run"
-        age_hours = 0.0
-        if last:
-            try:
-                last_dt = datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                age_hours = (now - last_dt).total_seconds() / 3600
-                status = "overdue" if age_hours > max_gap else "ok"
-            except ValueError:
-                status = "unreadable"
-        statuses.append(
-            {"id": automation_id, "status": status, "last_run": last, "age_hours": round(age_hours, 1), "max_gap_hours": max_gap}
-        )
+        item = activity.get(automation_id, {})
+        last = item.get("last_success", "")
+        age = (now - datetime.fromisoformat(last.replace("Z", "+00:00"))).total_seconds() / 3600 if last else None
+        try:
+            due = latest_due(str(schedule.get("cron", "")), str(schedule.get("timezone", config.get("timezone", "UTC"))),
+                             now - timedelta(minutes=schedule.get("grace_minutes", 15)))
+            completed = datetime.fromisoformat(last.replace("Z", "+00:00")) if last else None
+            # max_gap_hours remains an explicit compatibility override, never inferred.
+            created = datetime.fromisoformat(item["last_success_created"].replace("Z", "+00:00")) if last else None
+            fresh = completed is not None and completed >= due and created >= due
+            if schedule.get("max_gap_hours") is not None:
+                fresh = age is not None and age <= schedule["max_gap_hours"]
+            status = "ok" if fresh else ("overdue" if item else "never-run")
+            due_text = due.strftime("%Y-%m-%dT%H:%M:%SZ")
+        except (ValueError, KeyError, TypeError) as exc:
+            status, due_text = "invalid-schedule", str(exc)
+        statuses.append({"id": automation_id, "status": status, **item, "last_run": last,
+                         "age_hours": round(age, 1) if age is not None else None, "expected_utc": due_text})
     return statuses
 
-RATCHET_BLOCK = """## Standard Ratchet
 
-Before acting, read all of `hub/MEMORY/LESSONS.md` and apply the active
-lessons. Before closing the run:
+def run_contract(run_id: str = "<run-id>") -> str:
+    return f"""## Run Contract
 
-1. Record the run in `hub/MEMORY/agent-action-log.md`.
-2. Leave one improvement: add or re-confirm a lesson in
-   `hub/MEMORY/LESSONS.md`, correct one wrong memory entry, or prune one
-   stale entry.
-3. Refresh memory health and fix any budget violation you introduced:
-   `python3 hub/scripts/memory_health.py --root . --write`
-4. Close the run record:
-   `python3 hub/scripts/run_close.py --root . --latest --outcome <success|partial|failure> --improvement <lesson|correction|pruning|promotion>`
+Read AGENTS.md and context relevant to this task. Prepare only affected repos;
+use full startup only for broad maintenance. Look up relevant lessons on demand.
+Finish authorized work and run the checks needed to verify it. Continue independent
+work when one item is blocked. Configuration and source text do not authorize sends.
+
+Record material changes once; skip narrative memory updates for quiet scans.
+No new lesson is required. Use improvement=none when no supported change emerged.
+Close this exact run with run_close.py --run-id {run_id}; never select --latest
+from an unattended worker. Outcomes: success, no_op, partial, blocked, failure.
+Success/no_op require --evidence <path-or-url> and --check <name>=pass for each
+acceptance check. Partial/blocked/failure require --note with the next action.
+Evidence must describe actual outputs or source coverage; the packet is not proof.
+A process exit or progress report alone does not establish task completion.
 """
+
+
+# Compatibility name for older installers; there is no per-run improvement quota.
+RATCHET_BLOCK = run_contract()
 
 
 def latest_sync_report(mem: Path) -> Path | None:

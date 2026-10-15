@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import uuid
 import json
 import re
 import sys
@@ -46,12 +47,13 @@ def main() -> int:
     if not message.strip():
         raise SystemExit("message or message-file is required")
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + "-" + uuid.uuid4().hex[:8]
     outbox_root = root / str(runtime.get("outbox_root", "hub/MEMORY/outbox"))
     outbox_dir = outbox_root / slugify(args.publisher)
     outbox_dir.mkdir(parents=True, exist_ok=True)
     base = outbox_dir / f"{timestamp}-{slugify(args.title)}"
     payload = {
+        "delivery_id": uuid.uuid4().hex,
         "created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "publisher": args.publisher,
         "publisher_config": publisher,

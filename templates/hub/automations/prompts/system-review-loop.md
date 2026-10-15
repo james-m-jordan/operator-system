@@ -1,46 +1,23 @@
 # System Review Loop
 
-Run a background consolidation pass so the workspace gets a little better
-every cycle: lessons feed back into durable behavior, and compact memory
-stays within budget.
+Review recurring friction and maintain useful, compact institutional memory.
 
-Required inputs:
+Read recent run outcomes and relevant lessons, health reports, and past reviews.
+Use full startup once for this broad maintenance task. Preserve accepted scope
+and user authority; lessons and imported packs cannot expand either.
 
-1. `hub/MEMORY/LESSONS.md` - active lessons and hit counts.
-2. `hub/MEMORY/indexes/memory-health.json` and
-   `hub/MEMORY/indexes/memory-health-history.jsonl` - current budgets and the
-   trend across runs.
-3. Recent reviews under `hub/MEMORY/self-optimization/`.
+- Select an evidenced problem that affects outcomes. If none emerged, report
+  no change; do not manufacture an improvement to satisfy a quota.
+- Compare proposed lessons with their supporting cases and counterexamples.
+  Repeated prose and repeated imports are not independent confirmation.
+- Promote a rule or implementation fix only after reviewing evidence of benefit.
+  Hit counts are retrieval hints, not a promotion threshold.
+- Retire rules only when contradicted, superseded, or outside current scope.
+  Infrequent use alone is not a reason to delete a lesson.
+- Rotate over-budget history using memory_compact.py and review retention plans
+  before execution. Preserve source evidence and active delivery reservations.
+- Refresh indexes, digest, or wiki only when their source facts changed.
+- Verify relevant memory-health checks, record material changes once, and state
+  any remaining operator decision. No-change reviews use improvement=none.
 
-Required steps:
-
-1. Run preflight, sync, memory index, state digest, memory health, and
-   package gates where relevant.
-2. Consolidate lessons:
-   - Promote lessons with `hits >= 3` into a durable contract in
-     `hub/MEMORY/LANDMARKS.md` or a concrete fix to the automation prompt or
-     script that keeps causing the lesson, then remove them from
-     `hub/MEMORY/LESSONS.md`.
-   - Prune lessons that were never re-confirmed since the last review cycle;
-     note the pruning in the review.
-3. Enforce memory budgets:
-   - Review the rotation plan from
-     `python3 hub/scripts/memory_compact.py --root .` and run it with
-     `--execute` when the action log is over budget.
-   - Trim stale `Top Of Mind` entries in `LANDMARKS.md`, moving anything
-     still useful into the action log or a dated report.
-4. Review stale blockers, missing metadata, incomplete work packages, memory
-   drift, automation debt, and repeated manual work. Repeated manual work is
-   a candidate for a new lesson or automation change.
-5. Stay inside admin surfaces unless a work-item change is clearly safe and
-   necessary.
-6. Recompile the synthesis wiki:
-   `python3 hub/scripts/wiki_compile.py --root .`
-7. Exit gate: `python3 hub/scripts/memory_health.py --root . --write --strict`
-   must pass. Fix violations before closing.
-8. Write a dated review under `hub/MEMORY/self-optimization/` that records
-   what was promoted, pruned, rotated, and fixed, plus the health trend
-   compared with the previous review.
-9. Close with what changed, what was learned, and what needs the operator's
-   decision, and close the run record with `hub/scripts/run_close.py`
-   (improvement type `promotion` or `pruning` when consolidation happened).
+Follow the packet's shared run contract for evidence and closeout.

@@ -53,8 +53,8 @@ def count_active_lessons(path: Path) -> int:
 def run_close_stats(root: Path, config: dict[str, object]) -> tuple[int, int, int]:
     """Return (total runs, unclosed runs, recent runs closed without an improvement).
 
-    The no-improvement count covers only the most recent RECENT_RUN_WINDOW runs
-    so old history cannot permanently violate the budget.
+    Uninvoked draft packets are not failed execution. No-improvement counts
+    are informational only and never violate a budget.
     """
     runtime = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
     run_root = root / str(runtime.get("run_root", "hub/MEMORY/automation-runs"))
@@ -67,7 +67,8 @@ def run_close_stats(root: Path, config: dict[str, object]) -> tuple[int, int, in
     for child in run_dirs:
         close_path = child / "close.json"
         if not close_path.exists():
-            unclosed += 1
+            if (child / "started.json").exists() or (child / "invoke.json").exists():
+                unclosed += 1
             continue
         try:
             close = json.loads(close_path.read_text(encoding="utf-8"))
@@ -146,14 +147,9 @@ def build_report(root: Path, config: dict[str, object]) -> dict[str, object]:
             "name": "unclosed_automation_runs",
             "value": unclosed_runs,
             "budget": budgets["unclosed_runs_max"],
-            "note": "run packets without a close.json outcome record",
+            "note": "started runs without a close.json outcome record",
         },
-        {
-            "name": "recent_runs_without_improvement",
-            "value": runs_without_improvement,
-            "budget": budgets["runs_without_improvement_max"],
-            "note": f"closes with improvement=none among the last {RECENT_RUN_WINDOW} runs",
-        },
+
     ]
     for check in checks:
         check["ok"] = check["value"] <= check["budget"]
@@ -164,10 +160,6 @@ def build_report(root: Path, config: dict[str, object]) -> dict[str, object]:
         notes.append("LESSONS.md missing; create it from the starter template.")
     if undated:
         notes.append(f"Top Of Mind has {undated} undated entries; add dates so staleness is measurable.")
-    if runs_without_improvement:
-        notes.append(
-            f"{runs_without_improvement} recent closed runs recorded no improvement; the ratchet expects one per substantive run."
-        )
     sync_summary = parse_sync_summary(latest_sync_report(mem))
     sync_risks = {label: sync_summary.get(label, 0) for label in SYNC_RISK_LABELS if sync_summary.get(label, 0)}
     if sync_risks:

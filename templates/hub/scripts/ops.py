@@ -2,7 +2,9 @@
 """Single entry point for the operator-system helper scripts.
 
 Commands:
-  startup            config check + preflight + sync (dry) + index + digest + health
+  observe            read-only configuration check; no generated-state writes
+  prepare --repo ... scoped repo/capability checks; no global refresh
+  startup            broad maintenance: config check + preflight + sync (dry) + index + digest + health
   doctor             read-only health review: config check, health --strict, compact plan
   run <id>           create a run packet (add --invoke to execute the agent command)
   close ...          record a run outcome (args pass through to run_close.py)
@@ -46,14 +48,19 @@ def main() -> int:
         print(__doc__.strip())
         return 0
     command, rest = argv[0], argv[1:]
-    root_args = ["--root", "."]
+    root_args = ["--root", str(SCRIPT_DIR.parents[1])]
+
+    if command == "observe":
+        return run_script("config_check.py", *root_args, *rest)
+    if command == "prepare":
+        return run_script("prepare_workspace.py", *root_args, *rest)
 
     if command == "startup":
         return run_chain(
             [
                 ("config_check.py", root_args),
-                ("preflight_capabilities.py", root_args),
-                ("sync_workspace.py", root_args),
+                ("preflight_capabilities.py", root_args + ["--strict"]),
+                ("sync_workspace.py", root_args + ["--strict"]),
                 ("memory_index_refresh.py", root_args + ["--write", "--validate"]),
                 ("state_digest.py", root_args),
                 ("memory_health.py", root_args + ["--write"]),
